@@ -3,9 +3,9 @@ const VERSION=chrome.runtime.getManifest().version;
 chrome.runtime.onMessage.addListener((message,sender,sendResponse)=>{
   if(message?.type==='OPEN_APP'){
     const params=new URLSearchParams();
-    if(message.leagueId)params.set('league',String(message.leagueId));
-    if(message.teamId)params.set('team',String(message.teamId));
-    const url=chrome.runtime.getURL(`app/index.html${params.toString()?`?${params}`:''}`);
+    params.set('league','497223');
+    if(message.week)params.set('week',String(message.week));
+    const url=chrome.runtime.getURL(`app/team/index.html?${params}`);
     chrome.tabs.create({url}).then(()=>sendResponse({ok:true,url})).catch(error=>sendResponse({ok:false,error:error.message}));
     return true;
   }
