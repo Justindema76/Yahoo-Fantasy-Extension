@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Fantasy Intel Yahoo League Sync",
-  "version": "2.6.0",
-  "description": "Standalone Yahoo fantasy league sync with an extension-owned dashboard, no React or external web app required.",
+  "version": "2.7.0",
+  "description": "Yahoo fantasy sync with a standalone My Team Intel dashboard that groups actionable Intel by roster player.",
   "permissions": [
     "storage",
     "activeTab",
