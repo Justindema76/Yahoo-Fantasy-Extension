@@ -1,0 +1,58 @@
+name: Build Chrome Extension
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate version
+        shell: bash
+        run: |
+          MANIFEST_VERSION=$(python3 -c "import json; print(json.load(open('manifest.json'))['version'])")
+          FILE_VERSION=$(tr -d '[:space:]' < VERSION)
+          echo "Manifest version: $MANIFEST_VERSION"
+          echo "VERSION file: $FILE_VERSION"
+          test "$MANIFEST_VERSION" = "$FILE_VERSION"
+
+      - name: Build extension ZIP
+        shell: bash
+        run: |
+          mkdir -p dist
+          zip -r "dist/Fantasy-Intel-Yahoo-Extension-${{ github.ref_name }}.zip" \
+            manifest.json \
+            background.js \
+            league-sync.js \
+            overlay.js \
+            popup.html \
+            popup.css \
+            popup.js \
+            dashboard \
+            modules
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fantasy-intel-yahoo-extension
+          path: dist/*.zip
+          retention-days: 30
+
+      - name: Create GitHub Release for version tags
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release create "${{ github.ref_name }}" dist/*.zip \
+            --title "Fantasy Intel Yahoo Extension ${{ github.ref_name }}" \
+            --generate-notes
