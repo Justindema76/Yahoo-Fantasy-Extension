@@ -1,12 +1,22 @@
 (() => {
   'use strict';
+
   const SB='https://bbodmhffnqebhfksjier.supabase.co';
   const KEY='sb_publishable_L048cgw2gZwCeWmSWpUclA_cuKCSyQn';
   const HEAD={apikey:KEY,Authorization:`Bearer ${KEY}`,'Content-Type':'application/json'};
-  const LEAGUE='497223',LEAGUE_KEY='battle-of-the-kings-2026',VERSION='2.7.0';
+  const LEAGUE='497223';
+  const LEAGUE_KEY='battle-of-the-kings-2026';
+  const VERSION='3.1.0';
+  const PLAYER_PAGE_SIZE=25;
+  const PLAYER_PAGE_LIMIT=20;
+
   const clean=v=>String(v||'').replace(/\s+/g,' ').trim();
   const norm=v=>clean(v).toLowerCase().normalize('NFKD').replace(/[’']/g,'').replace(/[^a-z0-9]+/g,' ').replace(/\b(jr|sr|ii|iii|iv)\b/g,' ').replace(/\s+/g,' ').trim();
-  let syncing=false,last=null,lastError=null,stage='READY';
+
+  let syncing=false;
+  let last=null;
+  let lastError=null;
+  let stage='READY';
 
   function explicitTeamIdFromUrl(){
     const m=location.pathname.match(new RegExp(`^/f1/${LEAGUE}/(\\d+)(?:/|$)`));
@@ -30,7 +40,13 @@
     const explicitId=explicitTeamIdFromUrl();
     if(explicitId){
       const known=knownTeams.find(t=>String(t.id||t.yahoo_team_key||'')===String(explicitId));
-      const identity={leagueId:LEAGUE,teamId:String(explicitId),teamName:known?.name||known?.team_name||teamNameFromPage(explicitId)||stored?.teamName||`Yahoo Team ${explicitId}`,detectedFrom:'url',updatedAt:new Date().toISOString()};
+      const identity={
+        leagueId:LEAGUE,
+        teamId:String(explicitId),
+        teamName:known?.name||known?.team_name||teamNameFromPage(explicitId)||stored?.teamName||`Yahoo Team ${explicitId}`,
+        detectedFrom:'url',
+        updatedAt:new Date().toISOString()
+      };
       await chrome.storage.local.set({[key]:identity,fantasyLeagueIdentity:identity});
       return identity;
     }
@@ -47,23 +63,26 @@
     try{await chrome.storage.local.set({fantasyLeagueProgress:payload})}catch(_e){}
     return payload;
   }
+
   async function fail(error,extra={}){
     lastError={message:error?.message||String(error),stack:error?.stack||'',version:VERSION,stage,page:location.href,leagueId:LEAGUE,time:new Date().toISOString(),...extra};
     try{await chrome.storage.local.set({fantasyLeagueLastError:lastError})}catch(_e){}
     return lastError;
   }
+
   async function db(path,opt={}){
     await progress(`DATABASE ${String(opt.method||'GET').toUpperCase()}`,{resource:path.split('?')[0]});
-    const r=await fetch(`${SB}/rest/v1/${path}`,{...opt,headers:{...HEAD,...(opt.headers||{})}});
-    const text=await r.text();
-    if(!r.ok)throw Error(`Database ${r.status} ${r.statusText}: ${text||'(empty response)'}`);
+    const response=await fetch(`${SB}/rest/v1/${path}`,{...opt,headers:{...HEAD,...(opt.headers||{})}});
+    const text=await response.text();
+    if(!response.ok)throw Error(`Database ${response.status} ${response.statusText}: ${text||'(empty response)'}`);
     return text?JSON.parse(text):null;
   }
+
   async function page(path){
     await progress('YAHOO PAGE FETCH',{yahooPath:path});
-    const r=await fetch(path,{cache:'no-store',credentials:'include'});
-    if(!r.ok)throw Error(`Yahoo ${r.status} ${r.statusText}: ${path}`);
-    const html=await r.text();
+    const response=await fetch(path,{cache:'no-store',credentials:'include'});
+    if(!response.ok)throw Error(`Yahoo ${response.status} ${response.statusText}: ${path}`);
+    const html=await response.text();
     return new DOMParser().parseFromString(html,'text/html');
   }
 
@@ -71,8 +90,10 @@
     const byId=new Map();
     for(const a of doc.querySelectorAll('a[href]')){
       let u;try{u=new URL(a.getAttribute('href'),location.origin)}catch{continue}
-      const m=u.pathname.match(new RegExp(`^/f1/${LEAGUE}/(\\d+)(?:/|$)`)); if(!m)continue;
-      const id=m[1],name=clean(a.textContent);
+      const m=u.pathname.match(new RegExp(`^/f1/${LEAGUE}/(\\d+)(?:/|$)`));
+      if(!m)continue;
+      const id=m[1];
+      const name=clean(a.textContent);
       if(Number(id)<1||Number(id)>30||!name||name.length>80||/^(roster|players|matchup|edit|league|overview|research|draft)$/i.test(name))continue;
       const exact=new RegExp(`^/f1/${LEAGUE}/${id}/?$`).test(u.pathname);
       if(!byId.has(id))byId.set(id,[]);
@@ -87,12 +108,18 @@
   function playerAnchor(tr){
     const links=[...tr.querySelectorAll('a[href]')];
     return links.find(a=>/\/nfl\/players\/\d+|\/player\/\d+|playerId=|player_id=/i.test(a.getAttribute('href')||''))||
-      links.find(a=>{const t=clean(a.textContent);return t.length>2&&t.length<50&&/[a-z]/i.test(t)&&!/^([A-Z]{2,4}|add|drop|watch|news|stats|research)$/i.test(t)})||null;
+      links.find(a=>{
+        const t=clean(a.textContent);
+        return t.length>2&&t.length<50&&/[a-z]/i.test(t)&&!/^([A-Z]{2,4}|add|drop|watch|news|stats|research)$/i.test(t);
+      })||null;
   }
+
   function yahooKey(a,name){
-    const h=a?.getAttribute('href')||'',m=h.match(/\/nfl\/players\/(\d+)|\/player\/(\d+)|[?&](?:player_id|playerId|pid)=(\d+)/i);
+    const href=a?.getAttribute('href')||'';
+    const m=href.match(/\/nfl\/players\/(\d+)|\/player\/(\d+)|[?&](?:player_id|playerId|pid)=(\d+)/i);
     return m?(m[1]||m[2]||m[3]):`name:${norm(name)}`;
   }
+
   function positionFromText(text){
     const t=clean(text).toUpperCase();
     let m=t.match(/\b([A-Z]{2,3})\s*[-–·]\s*(QB|RB|WR|TE|K|DEF)\b/);
@@ -101,33 +128,68 @@
     if(m)return {team:m[2],position:m[1]};
     return {team:null,position:null};
   }
+
   function slotOf(tr){
     const valid=['Q/W/R/T','W/R/T','W/R','QB','RB','WR','TE','K','DEF','BN','IR+','IR','NA'];
-    for(const c of [...tr.querySelectorAll('th,td')].slice(0,5)){
-      const t=clean(c.textContent).toUpperCase().replace(/\s+/g,'');
-      for(const s of valid)if(t===s.replace(/\s+/g,''))return s;
+    for(const cell of [...tr.querySelectorAll('th,td')].slice(0,5)){
+      const t=clean(cell.textContent).toUpperCase().replace(/\s+/g,'');
+      for(const slot of valid)if(t===slot.replace(/\s+/g,''))return slot;
     }
     return null;
   }
 
   function yahooPlayersFrom(doc){
-    const out=[],seen=new Set();
+    const out=[];
+    const seen=new Set();
     for(const tr of doc.querySelectorAll('tr')){
-      const a=playerAnchor(tr); if(!a)continue;
-      const name=clean(a.textContent); if(!name||seen.has(norm(name)))continue;
+      const a=playerAnchor(tr);
+      if(!a)continue;
+      const name=clean(a.textContent);
       const meta=positionFromText(tr.textContent||'');
-      if(!meta.position)continue;
-      seen.add(norm(name));
-      out.push({name,yahooPlayerKey:yahooKey(a,name),team:meta.team,position:meta.position});
+      if(!name||!meta.position)continue;
+      const key=yahooKey(a,name);
+      const identity=`${key}|${norm(name)}`;
+      if(seen.has(identity))continue;
+      seen.add(identity);
+      out.push({name,yahooPlayerKey:key,team:meta.team,position:meta.position});
     }
     return out;
   }
 
+  async function loadYahooPlayerPool(){
+    const all=[];
+    const seen=new Set();
+    let pages=0;
+    for(let pageIndex=0;pageIndex<PLAYER_PAGE_LIMIT;pageIndex++){
+      const offset=pageIndex*PLAYER_PAGE_SIZE;
+      const path=offset?`/f1/${LEAGUE}/players?count=${offset}`:`/f1/${LEAGUE}/players`;
+      const doc=await page(path);
+      const rows=yahooPlayersFrom(doc);
+      let added=0;
+      for(const row of rows){
+        const id=row.yahooPlayerKey||`name:${norm(row.name)}`;
+        if(seen.has(id))continue;
+        seen.add(id);
+        all.push(row);
+        added++;
+      }
+      pages++;
+      if(pageIndex===0&&!rows.length){
+        throw Object.assign(Error('Yahoo Players page loaded, but no player rows were detected.'),{context:{yahooPath:path,pageTitle:doc.title||'',tableRows:doc.querySelectorAll('tr').length}});
+      }
+      if(added===0||rows.length<PLAYER_PAGE_SIZE)break;
+    }
+    return {players:all,pages};
+  }
+
   function rosterFrom(doc){
-    const rows=[],debug=[];
+    const rows=[];
+    const debug=[];
     for(const tr of doc.querySelectorAll('tr')){
-      const a=playerAnchor(tr); if(!a)continue;
-      const name=clean(a.textContent),slot=slotOf(tr);
+      const a=playerAnchor(tr);
+      if(!a)continue;
+      const name=clean(a.textContent);
+      const slot=slotOf(tr);
       if(debug.length<8)debug.push({name,slot,row:clean(tr.textContent).slice(0,180)});
       if(!name||!slot||rows.some(x=>x.name===name))continue;
       const meta=positionFromText(tr.textContent||'');
@@ -136,36 +198,104 @@
     return {rows,debug,title:doc.title||'',bodySample:clean(doc.body?.innerText||'').slice(0,500),tableRows:doc.querySelectorAll('tr').length};
   }
 
-  function buildCatalogIndex(catalog,yahooPlayers){
-    const map=new Map();
+  function catalogIndex(catalog){
+    const byName=new Map();
     const add=(name,row)=>{
-      const k=norm(name);
-      if(k&&!map.has(k))map.set(k,row);
+      const key=norm(name);
+      if(key&&!byName.has(key))byName.set(key,row);
     };
-    for(const p of catalog||[]){
-      add(p.yahoo_name,p); add(p.display_name,p);
-      for(const alias of p.aliases||[])add(alias,p);
+    for(const row of catalog||[]){
+      add(row.yahoo_name,row);
+      add(row.display_name,row);
+      for(const alias of row.aliases||[])add(alias,row);
     }
-    const yahooMap=new Map((yahooPlayers||[]).map(p=>[norm(p.name),p]));
-    return {catalog:map,yahoo:yahooMap};
+    return byName;
   }
 
-  function matchPlayer(name,index){
-    return index.catalog.get(norm(name))||null;
+  function fantasyPlayerIndex(players){
+    const byKey=new Map();
+    const byYahoo=new Map();
+    const byName=new Map();
+    for(const row of players||[]){
+      if(row.player_key)byKey.set(String(row.player_key),row);
+      if(row.yahoo_player_key)byYahoo.set(String(row.yahoo_player_key),row);
+      for(const name of [row.yahoo_name,row.player_name]){
+        const key=norm(name);
+        if(key&&!byName.has(key))byName.set(key,row);
+      }
+    }
+    return {byKey,byYahoo,byName};
+  }
+
+  function resolvePlayerIdentity(yahooPlayer,players,catalog){
+    const yahooId=String(yahooPlayer.yahooPlayerKey||`name:${norm(yahooPlayer.name)}`);
+    const existing=players.byYahoo.get(yahooId)||players.byName.get(norm(yahooPlayer.name));
+    const catalogRow=catalog.get(norm(yahooPlayer.name))||null;
+    const playerKey=existing?.player_key||catalogRow?.player_key||`yahoo:${yahooId}`;
+    return {
+      player_key:playerKey,
+      player_name:yahooPlayer.name,
+      team:yahooPlayer.team||existing?.team||catalogRow?.team||null,
+      position:yahooPlayer.position||existing?.position||catalogRow?.position||null,
+      role:existing?.role||catalogRow?.role||null,
+      yahoo_rank:existing?.yahoo_rank??catalogRow?.yahoo_rank??null,
+      yahoo_rank_source:existing?.yahoo_rank_source||catalogRow?.source||'Yahoo',
+      yahoo_player_key:yahooId,
+      yahoo_name:yahooPlayer.name,
+      active:true,
+      source:'Yahoo live sync',
+      yahoo_verified:true
+    };
+  }
+
+  function indexFantasyPlayer(row,index){
+    if(row.player_key)index.byKey.set(String(row.player_key),row);
+    if(row.yahoo_player_key)index.byYahoo.set(String(row.yahoo_player_key),row);
+    for(const name of [row.yahoo_name,row.player_name]){
+      const key=norm(name);
+      if(key&&!index.byName.has(key))index.byName.set(key,row);
+    }
+  }
+
+  async function upsertFantasyPlayers(yahooPlayers,playerIndex,catalog,when,source){
+    const payload=[];
+    for(const yahooPlayer of yahooPlayers){
+      const row=resolvePlayerIdentity(yahooPlayer,playerIndex,catalog);
+      row.source=source;
+      row.yahoo_verified_at=when;
+      row.last_seen_at=when;
+      row.updated_at=when;
+      payload.push(row);
+      indexFantasyPlayer(row,playerIndex);
+    }
+
+    for(let i=0;i<payload.length;i+=100){
+      const batch=payload.slice(i,i+100);
+      await db('fantasy_players?on_conflict=player_key',{
+        method:'POST',
+        headers:{Prefer:'resolution=merge-duplicates,return=minimal'},
+        body:JSON.stringify(batch)
+      });
+    }
+    return payload;
   }
 
   function teamMatch(team,existing){
-    const byKey=existing.find(x=>String(x.yahoo_team_key||'')===String(team.id)); if(byKey)return byKey;
+    const byKey=existing.find(x=>String(x.yahoo_team_key||'')===String(team.id));
+    if(byKey)return byKey;
     const names=[team.name,...team.alternates].map(norm);
-    const exact=existing.filter(x=>names.includes(norm(x.team_name))); if(exact.length===1)return exact[0];
+    const exact=existing.filter(x=>names.includes(norm(x.team_name)));
+    if(exact.length===1)return exact[0];
     const fuzzy=existing.filter(x=>names.some(n=>n.includes(norm(x.team_name))||norm(x.team_name).includes(n)));
     return fuzzy.length===1?fuzzy[0]:null;
   }
 
-  async function saveTeam(team,existing,index,when){
+  async function saveTeam(team,existingTeams,players,catalog,when){
     await progress('MATCH TEAM',{teamId:team.id,teamName:team.name});
-    const seeded=teamMatch(team,existing);
-    if(!seeded)throw Object.assign(Error(`Could not match Yahoo team #${team.id}: ${team.name}`),{context:{teamId:team.id,teamName:team.name,alternates:team.alternates,databaseTeams:existing.map(x=>x.team_name)}});
+    const seeded=teamMatch(team,existingTeams);
+    if(!seeded){
+      throw Object.assign(Error(`Could not match Yahoo team #${team.id}: ${team.name}`),{context:{teamId:team.id,teamName:team.name,alternates:team.alternates,databaseTeams:existingTeams.map(x=>x.team_name)}});
+    }
 
     await db(`fantasy_league_teams?id=eq.${seeded.id}&select=*`,{
       method:'PATCH',
@@ -175,32 +305,47 @@
 
     await progress('PARSE ROSTER',{teamId:team.id,teamName:seeded.team_name});
     const parsed=rosterFrom(await page(`/f1/${LEAGUE}/${team.id}`));
-    if(!parsed.rows.length)throw Object.assign(Error(`0 roster players detected for ${seeded.team_name}. Yahoo page loaded but the roster table was not readable.`),{context:{teamId:team.id,teamName:seeded.team_name,pageTitle:parsed.title,tableRows:parsed.tableRows,playerRowSamples:parsed.debug,bodySample:parsed.bodySample}});
+    if(!parsed.rows.length){
+      throw Object.assign(Error(`0 roster players detected for ${seeded.team_name}. Yahoo page loaded but the roster table was not readable.`),{context:{teamId:team.id,teamName:seeded.team_name,pageTitle:parsed.title,tableRows:parsed.tableRows,playerRowSamples:parsed.debug,bodySample:parsed.bodySample}});
+    }
+
+    const rosterYahooPlayers=parsed.rows.map(row=>({name:row.name,yahooPlayerKey:row.yahooKey,team:row.nflTeam,position:row.position}));
+    const resolved=await upsertFantasyPlayers(rosterYahooPlayers,players,catalog,when,'Yahoo roster live sync');
+    const resolvedByYahoo=new Map(resolved.map(row=>[String(row.yahoo_player_key),row]));
+    const resolvedByName=new Map(resolved.map(row=>[norm(row.player_name),row]));
 
     await db(`fantasy_league_rosters?league_team_id=eq.${seeded.id}`,{method:'DELETE'});
 
-    let matched=0;
-    const unmatchedNames=[];
-    const payload=parsed.rows.map(r=>{
-      const p=matchPlayer(r.name,index);
-      const y=index.yahoo.get(norm(r.name));
-      if(p)matched++; else unmatchedNames.push(r.name);
+    const payload=parsed.rows.map(row=>{
+      const player=resolvedByYahoo.get(String(row.yahooKey))||resolvedByName.get(norm(row.name));
       return {
         league_team_id:seeded.id,
-        player_key:p?.player_key||null,
-        yahoo_player_key:r.yahooKey||y?.yahooPlayerKey||`name:${norm(r.name)}`,
-        yahoo_player_name:r.name,
-        nfl_team:y?.team||r.nflTeam||p?.team||null,
-        position:y?.position||r.position||p?.position||null,
-        roster_slot:r.slot,
+        player_key:player.player_key,
+        yahoo_player_key:player.yahoo_player_key,
+        yahoo_player_name:player.yahoo_name||row.name,
+        nfl_team:player.team||row.nflTeam||null,
+        position:player.position||row.position||null,
+        roster_slot:row.slot,
         active:true,
         last_synced_at:when,
         updated_at:when
       };
     });
 
-    await db('fantasy_league_rosters',{method:'POST',headers:{Prefer:'return=minimal'},body:JSON.stringify(payload)});
-    return {teamName:seeded.team_name,yahooTeamKey:team.id,total:payload.length,matched,unmatched:payload.length-matched,unmatchedNames};
+    await db('fantasy_league_rosters',{
+      method:'POST',
+      headers:{Prefer:'return=minimal'},
+      body:JSON.stringify(payload)
+    });
+
+    return {
+      teamName:seeded.team_name,
+      yahooTeamKey:team.id,
+      total:payload.length,
+      matched:payload.length,
+      unmatched:0,
+      playerSource:'fantasy_players / Yahoo'
+    };
   }
 
   function numberValues(text){
@@ -225,15 +370,12 @@
     const lines=raw.slice(start,end);
 
     const byName=new Map();
-    for(const t of teams){
-      byName.set(norm(t.team_name),t);
-    }
+    for(const team of teams)byName.set(norm(team.team_name),team);
 
     const hits=[];
     const seen=new Set();
     for(let i=0;i<lines.length;i++){
-      const n=norm(lines[i]);
-      const team=byName.get(n);
+      const team=byName.get(norm(lines[i]));
       if(team&&!seen.has(team.id)){
         hits.push({index:i,team});
         seen.add(team.id);
@@ -242,15 +384,13 @@
 
     const out=[];
     for(let i=0;i+1<hits.length;i+=2){
-      const a=hits[i],b=hits[i+1];
+      const a=hits[i];
+      const b=hits[i+1];
       const between=lines.slice(a.index+1,b.index);
       const nums=numberValues(between.join(' '));
       let aPoints=null,bPoints=null,aProjected=null,bProjected=null;
-      if(nums.length>=4){
-        [aPoints,aProjected,bPoints,bProjected]=nums.slice(0,4);
-      }else if(nums.length>=2){
-        [aPoints,bPoints]=nums.slice(0,2);
-      }
+      if(nums.length>=4)[aPoints,aProjected,bPoints,bProjected]=nums.slice(0,4);
+      else if(nums.length>=2)[aPoints,bPoints]=nums.slice(0,2);
 
       const ids=[String(a.team.yahoo_team_key||''),String(b.team.yahoo_team_key||'')].sort((x,y)=>Number(x)-Number(y));
       if(!ids[0]||!ids[1])continue;
@@ -275,16 +415,7 @@
       });
     }
 
-    return {
-      rows:out,
-      debug:{
-        pageTitle:doc.title||'',
-        startLine:start,
-        endLine:end,
-        teamHits:hits.map(h=>({team:h.team.team_name,yahooTeamKey:h.team.yahoo_team_key,line:h.index})),
-        sample:lines.slice(0,80)
-      }
-    };
+    return {rows:out,debug:{pageTitle:doc.title||'',startLine:start,endLine:end,teamHits:hits.map(h=>({team:h.team.team_name,yahooTeamKey:h.team.yahoo_team_key,line:h.index})),sample:lines.slice(0,80)}};
   }
 
   async function syncAllMatchups(existingTeams,when){
@@ -296,17 +427,15 @@
         const parsed=weeklyMatchupsFrom(doc,week,existingTeams);
         await db(`fantasy_league_matchups?league_key=eq.${LEAGUE_KEY}&week=eq.${week}`,{method:'DELETE'});
         if(parsed.rows.length){
-          const rows=parsed.rows.map(r=>({...r,last_synced_at:when,updated_at:when}));
+          const rows=parsed.rows.map(row=>({...row,last_synced_at:when,updated_at:when}));
           await db('fantasy_league_matchups',{method:'POST',headers:{Prefer:'return=minimal'},body:JSON.stringify(rows)});
         }
-        result.weeks+=1;
+        result.weeks++;
         result.matchups+=parsed.rows.length;
         result.weekResults.push({week,matchups:parsed.rows.length});
-        if(parsed.rows.length===0){
-          result.warnings.push({week,message:`No matchup pairs detected for Week ${week}.`,debug:parsed.debug});
-        }
-      }catch(e){
-        result.warnings.push({week,message:e.message});
+        if(parsed.rows.length===0)result.warnings.push({week,message:`No matchup pairs detected for Week ${week}.`,debug:parsed.debug});
+      }catch(error){
+        result.warnings.push({week,message:error.message});
       }
     }
     return result;
@@ -314,35 +443,59 @@
 
   async function sync(){
     if(syncing)throw Error('Sync already running.');
-    syncing=true; lastError=null; const when=new Date().toISOString();
+    syncing=true;
+    lastError=null;
+    const when=new Date().toISOString();
+
     try{
       await progress('LOAD LEAGUE');
-      const [teamsDoc,playersDoc,existing,catalog]=await Promise.all([
+      const [teamsDoc,existingTeams,catalog,existingPlayers]=await Promise.all([
         page(`/f1/${LEAGUE}/teams`),
-        page(`/f1/${LEAGUE}/players`),
         db(`fantasy_league_teams?select=*&league_key=eq.${LEAGUE_KEY}`),
-        db('draft_player_catalog?select=player_key,yahoo_name,display_name,team,position,yahoo_rank,yahoo_verified,source,aliases,active&active=eq.true')
+        db('draft_player_catalog?select=player_key,yahoo_name,display_name,team,position,role,yahoo_rank,yahoo_verified,source,aliases,active&active=eq.true'),
+        db('fantasy_players?select=*')
       ]);
 
-      await progress('PARSE YAHOO PLAYERS');
-      const yahooPlayers=yahooPlayersFrom(playersDoc);
-      if(!yahooPlayers.length)throw Object.assign(Error('Yahoo Players page loaded, but no player rows were detected.'),{context:{yahooPath:`/f1/${LEAGUE}/players`,pageTitle:playersDoc.title||'',tableRows:playersDoc.querySelectorAll('tr').length}});
-
-      await progress('PARSE TEAM LIST',{yahooPlayersDetected:yahooPlayers.length});
+      await progress('PARSE TEAM LIST');
       const teams=teamsFrom(teamsDoc);
-      if(teams.length!==12)throw Object.assign(Error(`Expected 12 teams but detected ${teams.length}.`),{context:{teamsFound:teams,yahooPlayersDetected:yahooPlayers.length}});
+      if(teams.length<2)throw Object.assign(Error(`Yahoo team list could not be read. Detected ${teams.length} teams.`),{context:{teamsFound:teams}});
 
       const identity=await resolveIdentity(teams);
-      const index=buildCatalogIndex(catalog,yahooPlayers);
-      const result={leagueId:LEAGUE,myTeamKey:identity?.teamId||null,myTeamName:identity?.teamName||null,playerSource:'Yahoo /players + draft_player_catalog',yahooPlayersDetected:yahooPlayers.length,teams:0,players:0,matched:0,unmatched:0,errors:[],teamResults:[],syncedAt:when};
+      const catalog=catalogIndex(catalog);
+      const players=fantasyPlayerIndex(existingPlayers||[]);
+
+      await progress('SYNC YAHOO PLAYER POOL');
+      const yahooPool=await loadYahooPlayerPool();
+      await upsertFantasyPlayers(yahooPool.players,players,catalog,when,'Yahoo /players live sync');
+
+      const result={
+        leagueId:LEAGUE,
+        myTeamKey:identity?.teamId||null,
+        myTeamName:identity?.teamName||null,
+        playerSource:'Yahoo /players + Yahoo team rosters -> fantasy_players',
+        yahooPlayersDetected:yahooPool.players.length,
+        yahooPlayerPages:yahooPool.pages,
+        teams:0,
+        players:0,
+        matched:0,
+        unmatched:0,
+        errors:[],
+        teamResults:[],
+        syncedAt:when
+      };
 
       for(const team of teams){
         try{
-          const r=await saveTeam(team,existing,index,when);
-          result.teamResults.push(r);result.teams++;result.players+=r.total;result.matched+=r.matched;result.unmatched+=r.unmatched;
-        }catch(e){
-          const d=await fail(e,e.context||{teamId:team.id,teamName:team.name});
-          result.errors.push(d);result.teamResults.push({teamName:team.name,yahooTeamKey:team.id,error:d.message,total:0,matched:0,unmatched:0});
+          const row=await saveTeam(team,existingTeams,players,catalog,when);
+          result.teamResults.push(row);
+          result.teams++;
+          result.players+=row.total;
+          result.matched+=row.matched;
+          result.unmatched+=row.unmatched;
+        }catch(error){
+          const diagnostic=await fail(error,error.context||{teamId:team.id,teamName:team.name});
+          result.errors.push(diagnostic);
+          result.teamResults.push({teamName:team.name,yahooTeamKey:team.id,error:diagnostic.message,total:0,matched:0,unmatched:0});
         }
       }
 
@@ -353,22 +506,35 @@
       result.matchupWarnings=schedule.warnings;
       result.weekResults=schedule.weekResults;
 
-      await progress(result.errors.length?'PARTIAL SYNC':'COMPLETE',{errors:result.errors.length,yahooPlayersDetected:yahooPlayers.length,matchups:result.matchups,matchupWarnings:result.matchupWarnings.length});
+      await progress(result.errors.length?'PARTIAL SYNC':'COMPLETE',{
+        errors:result.errors.length,
+        yahooPlayersDetected:result.yahooPlayersDetected,
+        matchups:result.matchups,
+        matchupWarnings:result.matchupWarnings.length
+      });
+
       last=result;
       await chrome.storage.local.set({fantasyLeagueLastSync:result,fantasyLeagueLastError:result.errors.at(-1)||null});
       return result;
-    }catch(e){await fail(e,e.context||{});throw e}
-    finally{syncing=false}
+    }catch(error){
+      await fail(error,error.context||{});
+      throw error;
+    }finally{
+      syncing=false;
+    }
   }
 
-  chrome.runtime.onMessage.addListener((msg,_s,reply)=>{
+  chrome.runtime.onMessage.addListener((msg,_sender,reply)=>{
     if(msg?.type==='SYNC_LEAGUE'){
-      sync().then(result=>reply({ok:result.errors.length===0,partial:result.errors.length>0,result,error:result.errors[0]?.message||null,diagnostics:result.errors}))
-        .catch(async e=>reply({ok:false,error:e.message,diagnostics:[lastError||await fail(e)]}));
+      sync()
+        .then(result=>reply({ok:result.errors.length===0,partial:result.errors.length>0,result,error:result.errors[0]?.message||null,diagnostics:result.errors}))
+        .catch(async error=>reply({ok:false,error:error.message,diagnostics:[lastError||await fail(error)]}));
       return true;
     }
+
     if(msg?.type==='LEAGUE_STATUS'){
-      chrome.storage.local.get(['fantasyLeagueLastSync','fantasyLeagueLastError','fantasyLeagueProgress','fantasyLeagueIdentity']).then(x=>reply({ok:true,lastSync:last||x.fantasyLeagueLastSync||null,lastError:lastError||x.fantasyLeagueLastError||null,progress:x.fantasyLeagueProgress||null,identity:x.fantasyLeagueIdentity||null,syncing,stage}));
+      chrome.storage.local.get(['fantasyLeagueLastSync','fantasyLeagueLastError','fantasyLeagueProgress','fantasyLeagueIdentity'])
+        .then(data=>reply({ok:true,lastSync:last||data.fantasyLeagueLastSync||null,lastError:lastError||data.fantasyLeagueLastError||null,progress:data.fantasyLeagueProgress||null,identity:data.fantasyLeagueIdentity||null,syncing,stage}));
       return true;
     }
   });
