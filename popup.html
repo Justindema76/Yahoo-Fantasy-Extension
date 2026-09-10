@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Fantasy Intel Yahoo Sync</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main class="wrap">
+    <div class="eyebrow">FANTASY INTEL</div>
+    <h1>Yahoo League Sync <small style="font-size:10px;color:#53d7ff">v2.4.0</small></h1>
+    <p class="league">Battle of the Kings · League 497223</p>
+    <div class="my-team"><span>YOUR TEAM</span><b>House of the Dragon</b><small>Yahoo Team 6</small></div>
+
+    <button id="syncButton" class="primary">SYNC ALL TEAMS</button>
+    <button id="openButton" class="secondary">OPEN LEAGUE VIEW</button>
+
+    <section id="status" class="status">
+      <b id="statusTitle">Ready</b>
+      <p id="statusText">Open any Battle of the Kings page in Yahoo, then sync.</p>
+    </section>
+
+    <div id="stats" class="stats" hidden>
+      <div><b id="teamsCount">0</b><span>TEAMS</span></div>
+      <div><b id="playersCount">0</b><span>PLAYERS</span></div>
+      <div><b id="matchedCount">0</b><span>MATCHED</span></div>
+      <div><b id="unmatchedCount">0</b><span>UNMATCHED</span></div>
+    </div>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>
