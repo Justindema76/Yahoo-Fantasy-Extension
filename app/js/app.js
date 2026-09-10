@@ -1,6 +1,7 @@
 import {CONFIG} from './config.js';
 import {loadLeagueData} from './api.js';
 import {esc,norm,slotWeight,isBenchSlot,buildIndexes,playerIntel,playerTags} from './utils.js';
+import {installPlayerDrawer,drawerAttrs} from './player-drawer.js';
 
 const PAGE=document.body.dataset.page||'team';
 const OWNER_TEAM_ID='6';
@@ -70,19 +71,18 @@ function intelBadges(row){
   return `<div class="tags">${tags.map(t=>`<span class="tag ${String(t).toLowerCase().replace(/[^a-z0-9]+/g,'-')}">${esc(String(t).toUpperCase())}</span>`).join('')}</div>`;
 }
 
-function rowHtml(row,{week=selectedWeek,showIntel=true,compact=false}={}){
-  const stat=statFor(row,week),pool=poolFor(row),intel=latestIntel(row);
+function rowHtml(row,{week=selectedWeek,compact=false}={}){
+  const stat=statFor(row,week),pool=poolFor(row);
   const actual=stat?.fantasy_points??pool?.fantasy_points??null;
   const projected=stat?.projected_points??pool?.projected_points??null;
   const opponent=stat?.opponent||pool?.opponent||'';
   const game=stat?.game_time||pool?.game_time||'';
-  return `<div class="player-row ${compact?'compact':''}">
+  return `<div class="player-row player-tappable ${compact?'compact':''}" ${drawerAttrs(row)} tabindex="0" role="button" aria-label="Open ${esc(row.yahoo_player_name||row.yahoo_name||row.player_name||'player')} details">
     <div class="slot">${esc(row.roster_slot||row.position||'')}</div>
     <div class="player-main">
       <b>${esc(row.yahoo_player_name||row.yahoo_name||row.player_name||'')}</b>
       <small>${esc(row.position||'')} · ${esc(row.nfl_team||row.team||'')}${opponent?` · ${esc(opponent)}`:''}${game?` · ${esc(game)}`:''}</small>
       ${intelBadges(row)}
-      ${showIntel&&intel?`<p><strong>${esc(intel.action)}:</strong> ${esc(intel.recommendation||intel.what_changed||'')}</p>`:''}
     </div>
     <div class="points"><b>${fmt(actual)}</b><span>Proj ${fmt(projected)}</span></div>
   </div>`;
@@ -109,8 +109,8 @@ function renderMatchup(){
   const oppProj=matchup.team_a_id===me.id?matchup.team_b_projected:matchup.team_a_projected;
   $('matchupTeams').innerHTML=`<div><small>YOU</small><b>${esc(me.team_name)}</b><strong>${fmt(myPoints)} <span>/ ${fmt(myProj)}</span></strong></div><i>VS</i><div><small>OPPONENT</small><b>${esc(opponent?.team_name||'Opponent')}</b><strong>${fmt(oppPoints)} <span>/ ${fmt(oppProj)}</span></strong></div>`;
   $('opponentTitle').textContent=`${opponent?.team_name||'Opponent'} · Starters`;
-  $('matchupBody').innerHTML=starters.map(r=>rowHtml(r,{showIntel:true})).join('')||'<div class="empty">No opponent starters synced for this week.</div>';
-  $('opponentBench').innerHTML=bench.map(r=>rowHtml(r,{showIntel:true})).join('')||'<div class="empty">No opponent bench players synced.</div>';
+  $('matchupBody').innerHTML=starters.map(r=>rowHtml(r)).join('')||'<div class="empty">No opponent starters synced for this week.</div>';
+  $('opponentBench').innerHTML=bench.map(r=>rowHtml(r)).join('')||'<div class="empty">No opponent bench players synced.</div>';
 }
 
 function availabilityLabel(v){return String(v||'UNKNOWN').replaceAll('_',' ')}
@@ -125,14 +125,13 @@ function renderPlayers(){
   $('playerCount').textContent=`${rows.length} players`;
   $('playerPool').innerHTML=rows.slice(0,500).map(p=>{
     const fake={player_key:p.player_key,yahoo_player_key:p.yahoo_player_key,yahoo_player_name:p.yahoo_player_name,position:p.position,nfl_team:p.nfl_team,roster_slot:p.position};
-    const intel=latestIntel(fake);
-    return `<div class="player-row pool-row"><div class="slot">${esc(p.position||'')}</div><div class="player-main"><b>${esc(p.yahoo_player_name)}</b><small>${esc(p.nfl_team||'')} · ${esc(availabilityLabel(p.availability_status))}${p.waiver_clear_text?` · ${esc(p.waiver_clear_text)}`:''}</small>${intelBadges(fake)}${intel?`<p><strong>${esc(intel.action)}:</strong> ${esc(intel.recommendation||intel.what_changed||'')}</p>`:''}</div><div class="points"><b>${fmt(p.fantasy_points)}</b><span>Proj ${fmt(p.projected_points)}</span>${p.yahoo_rank?`<em>Rank ${esc(p.yahoo_rank)}</em>`:''}</div></div>`;
+    return `<div class="player-row pool-row player-tappable" ${drawerAttrs(fake)} tabindex="0" role="button" aria-label="Open ${esc(p.yahoo_player_name)} details"><div class="slot">${esc(p.position||'')}</div><div class="player-main"><b>${esc(p.yahoo_player_name)}</b><small>${esc(p.nfl_team||'')} · ${esc(availabilityLabel(p.availability_status))}${p.waiver_clear_text?` · ${esc(p.waiver_clear_text)}`:''}</small>${intelBadges(fake)}</div><div class="points"><b>${fmt(p.fantasy_points)}</b><span>Proj ${fmt(p.projected_points)}</span>${p.yahoo_rank?`<em>Rank ${esc(p.yahoo_rank)}</em>`:''}</div></div>`;
   }).join('')||'<div class="empty">No Yahoo waiver/free-agent rows are stored yet. Sync Yahoo from the Chrome extension on your Mac, then refresh this page.</div>';
 }
 
 function teamDropdownHtml(team,matchupId){
   const id=`roster-${matchupId}-${team.id}`;
-  return `<button class="roster-toggle" data-roster="${id}">PLAYERS ▼</button><div id="${id}" class="inline-roster" hidden>${weekRosterFor(team).map(r=>rowHtml(r,{showIntel:false,compact:true})).join('')}</div>`;
+  return `<button class="roster-toggle" data-roster="${id}">PLAYERS ▼</button><div id="${id}" class="inline-roster" hidden>${weekRosterFor(team).map(r=>rowHtml(r,{compact:true})).join('')}</div>`;
 }
 function renderLeague(){
   const me=ownerTeam(),matches=data.matchups.filter(m=>Number(m.week)===selectedWeek);
@@ -140,7 +139,7 @@ function renderLeague(){
     const a=teamByDb(m.team_a_id),b=teamByDb(m.team_b_id),mine=a?.id===me?.id||b?.id===me?.id;
     return `<article class="matchup-card ${mine?'mine':''}"><div class="match-team"><div><b>${esc(a?.team_name||m.team_a_name)}</b>${teamDropdownHtml(a,m.id)}</div><div class="match-score"><b>${fmt(m.team_a_points)}</b><span>Proj ${fmt(m.team_a_projected)}</span></div></div><div class="versus">VS</div><div class="match-team"><div><b>${esc(b?.team_name||m.team_b_name)}</b>${teamDropdownHtml(b,m.id)}</div><div class="match-score"><b>${fmt(m.team_b_points)}</b><span>Proj ${fmt(m.team_b_projected)}</span></div></div></article>`;
   }).join('')||'<div class="empty">No league matchups synced for this week.</div>';
-  document.querySelectorAll('.roster-toggle').forEach(btn=>btn.onclick=()=>{const target=$(btn.dataset.roster),open=target.hidden;target.hidden=!open;btn.textContent=open?'PLAYERS ▲':'PLAYERS ▼'});
+  document.querySelectorAll('.roster-toggle').forEach(btn=>btn.onclick=e=>{e.stopPropagation();const target=$(btn.dataset.roster),open=target.hidden;target.hidden=!open;btn.textContent=open?'PLAYERS ▲':'PLAYERS ▼'});
   const select=$('managerSelect');
   if(select&&!select.dataset.ready){
     select.innerHTML=data.teams.map(t=>`<option value="${esc(t.id)}">${esc(t.team_name)}</option>`).join('');
@@ -153,7 +152,7 @@ function renderLeague(){
 function renderManagerRoster(){
   const select=$('managerSelect'),team=teamByDb(select?.value)||ownerTeam();if(!$('managerRoster')||!team)return;
   $('managerRosterTitle').textContent=team.team_name;
-  $('managerRoster').innerHTML=rosterFor(team).map(r=>rowHtml(r,{showIntel:true})).join('')||'<div class="empty">No current roster synced.</div>';
+  $('managerRoster').innerHTML=rosterFor(team).map(r=>rowHtml(r)).join('')||'<div class="empty">No current roster synced.</div>';
 }
 
 function render(){
@@ -170,6 +169,7 @@ async function load(){
   }catch(error){showNotice(`Could not load Fantasy Intel: ${error.message}`,'error')}
 }
 
+installPlayerDrawer({getData:()=>data,getIndexes:()=>indexes,getWeek:()=>selectedWeek});
 $('refreshButton')?.addEventListener('click',load);
 ['playerSearch','positionFilter','statusFilter','sortFilter'].forEach(id=>$(id)?.addEventListener(id==='playerSearch'?'input':'change',()=>PAGE==='players'&&renderPlayers()));
 $('benchToggle')?.addEventListener('click',()=>{const target=$('opponentBench');target.hidden=!target.hidden;$('benchToggle').textContent=target.hidden?'SHOW OPPONENT BENCH ▼':'HIDE OPPONENT BENCH ▲'});
