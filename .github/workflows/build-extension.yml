@@ -21,9 +21,21 @@ jobs:
         run: |
           MANIFEST_VERSION=$(python3 -c "import json; print(json.load(open('manifest.json'))['version'])")
           FILE_VERSION=$(tr -d '[:space:]' < VERSION)
+          PACKAGE_VERSION=$(python3 -c "import json; print(json.load(open('package.json'))['version'])")
           echo "Manifest version: $MANIFEST_VERSION"
           echo "VERSION file: $FILE_VERSION"
+          echo "package.json: $PACKAGE_VERSION"
           test "$MANIFEST_VERSION" = "$FILE_VERSION"
+          test "$MANIFEST_VERSION" = "$PACKAGE_VERSION"
+
+      - name: Check JavaScript syntax
+        shell: bash
+        run: |
+          node --check background.js
+          node --check league-sync.js
+          node --check overlay.js
+          node --check popup.js
+          for file in app/js/*.js app/js/views/*.js; do node --check "$file"; done
 
       - name: Build extension ZIP
         shell: bash
@@ -37,8 +49,7 @@ jobs:
             popup.html \
             popup.css \
             popup.js \
-            dashboard \
-            modules
+            app
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
