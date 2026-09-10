@@ -30,19 +30,38 @@ function weeklyIndex(rows){
   }
   return {byWeekYahoo,byWeekPlayer};
 }
-function overlayPoolWithWeeklyStats(pool,weekStats){
-  const index=weeklyIndex(weekStats);
-  return (pool||[]).map(base=>{
-    const raw={...base};
-    const weekly=()=>{
+function keyFor(row){return String(row?.yahoo_player_key||row?.player_key||'')}
+function buildAllPlayerRows(players,pool,weekStats){
+  const weekly=weeklyIndex(weekStats),poolByYahoo=new Map(),poolByPlayer=new Map(),rows=new Map();
+  for(const p of pool||[]){if(p.yahoo_player_key)poolByYahoo.set(String(p.yahoo_player_key),p);if(p.player_key)poolByPlayer.set(String(p.player_key),p)}
+  const add=(source={})=>{
+    const yahoo=String(source.yahoo_player_key||''),player=String(source.player_key||''),key=yahoo||player;
+    if(!key)return;
+    const existing=rows.get(key)||{};
+    const status=poolByYahoo.get(yahoo)||poolByPlayer.get(player)||{};
+    rows.set(key,{...existing,...source,...status,
+      player_key:source.player_key||status.player_key||existing.player_key||null,
+      yahoo_player_key:source.yahoo_player_key||status.yahoo_player_key||existing.yahoo_player_key||null,
+      yahoo_player_name:source.yahoo_player_name||source.yahoo_name||source.player_name||status.yahoo_player_name||existing.yahoo_player_name||'',
+      nfl_team:source.nfl_team||source.team||status.nfl_team||existing.nfl_team||null,
+      position:source.position||status.position||existing.position||null,
+      yahoo_rank:status.yahoo_rank??source.yahoo_rank??existing.yahoo_rank??null,
+      availability_status:status.availability_status||existing.availability_status||'FREE_AGENT'
+    });
+  };
+  for(const p of players||[])add(p);
+  for(const p of pool||[])add(p);
+  for(const st of weekStats||[])add(st);
+  return [...rows.values()].map(raw=>{
+    const out={...raw};
+    const getWeek=()=>{
       const week=selectedWeek(raw.current_week||1);
-      return (raw.yahoo_player_key&&index.byWeekYahoo.get(`${week}:${String(raw.yahoo_player_key)}`))
-        ||(raw.player_key&&index.byWeekPlayer.get(`${week}:${String(raw.player_key)}`))
+      return (raw.yahoo_player_key&&weekly.byWeekYahoo.get(`${week}:${String(raw.yahoo_player_key)}`))
+        ||(raw.player_key&&weekly.byWeekPlayer.get(`${week}:${String(raw.player_key)}`))
         ||null;
     };
-    const out={...raw};
     for(const field of ['fantasy_points','projected_points','opponent','game_time','game_status']){
-      Object.defineProperty(out,field,{enumerable:true,configurable:true,get(){return weekly()?.[field]??null;}});
+      Object.defineProperty(out,field,{enumerable:true,configurable:true,get(){return getWeek()?.[field]??null;}});
     }
     return out;
   });
@@ -62,5 +81,5 @@ export async function loadLeagueData(leagueId){
     api(`fantasy_league_player_pool?select=*&league_key=eq.${leagueKey}&order=availability_status.asc,position.asc,yahoo_player_name.asc`),
     api('fantasy_players?select=player_key,yahoo_player_key,yahoo_name,player_name,team,position,yahoo_rank,role,active&active=eq.true')
   ]);
-  return {leagueId:String(leagueId),leagueKey,teams:teams||[],rosters:rosters||[],matchups:matchups||[],planner:planner||[],intel:intel||[],weekStats:weekStats||[],pool:overlayPoolWithWeeklyStats(pool||[],weekStats||[]),players:players||[]};
+  return {leagueId:String(leagueId),leagueKey,teams:teams||[],rosters:rosters||[],matchups:matchups||[],planner:planner||[],intel:intel||[],weekStats:weekStats||[],pool:buildAllPlayerRows(players||[],pool||[],weekStats||[]),players:players||[]};
 }
