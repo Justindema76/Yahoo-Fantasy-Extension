@@ -3,7 +3,7 @@
   const SB='https://bbodmhffnqebhfksjier.supabase.co';
   const KEY='sb_publishable_L048cgw2gZwCeWmSWpUclA_cuKCSyQn';
   const HEAD={apikey:KEY,Authorization:`Bearer ${KEY}`,'Content-Type':'application/json'};
-  const LEAGUE='497223',LEAGUE_KEY='battle-of-the-kings-2026',VERSION='2.5.0';
+  const LEAGUE='497223',LEAGUE_KEY='battle-of-the-kings-2026',VERSION='2.7.0';
   const clean=v=>String(v||'').replace(/\s+/g,' ').trim();
   const norm=v=>clean(v).toLowerCase().normalize('NFKD').replace(/[’']/g,'').replace(/[^a-z0-9]+/g,' ').replace(/\b(jr|sr|ii|iii|iv)\b/g,' ').replace(/\s+/g,' ').trim();
   let syncing=false,last=null,lastError=null,stage='READY';
