@@ -1,10 +1,10 @@
 # Fantasy Intel Yahoo Extension
 
-Standalone Chrome Manifest V3 extension plus a normal HTML/CSS/JavaScript Fantasy Intel user app.
+Standalone Chrome Manifest V3 Yahoo connector plus a normal HTML/CSS/JavaScript Fantasy Intel user app.
 
 ## Current build
 
-Version: **3.0.0**
+Version: **3.1.0**
 
 Current private test configuration:
 - Yahoo league: Battle of the Kings
@@ -14,66 +14,104 @@ Current private test configuration:
 - House of the Dragon: Yahoo Team `6`
 - TEAM DOG SCIENCE: Yahoo Team `1`
 
-A backup of the pre-refactor build is preserved on branch:
-`backup/pre-local-organize-2026-09-10`
-
-## Product split
-
-The repository now has two clear responsibilities.
-
-### Yahoo connector
-
-Root extension files handle Yahoo:
-- `manifest.json`
-- `background.js`
-- `league-sync.js`
-- `overlay.js`
-- `popup.html`
-- `popup.css`
-- `popup.js`
-
-They detect the current Yahoo manager, sync teams/rosters/matchups, and open Fantasy Intel.
-
-### Fantasy Intel user app
-
-The user-facing app lives under `app/`:
+## Repository layout
 
 ```text
-app/
-  index.html
-  css/
-    app.css
-  js/
-    config.js
-    runtime.js
-    api.js
-    utils.js
-    main.js
-    views/
-      team.js
-      matchups.js
-      league.js
+Yahoo-Fantasy-Extension/
+  manifest.json
+  background.js
+  league-sync.js
+  overlay.js
+  popup.html
+  popup.css
+  popup.js
+
+  app/
+    index.html
+    css/app.css
+    js/
+      config.js
+      runtime.js
+      api.js
+      utils.js
+      main.js
+      views/
+        team.js
+        matchups.js
+        league.js
+
+  dev-server.js
+  package.json
+  VERSION
 ```
 
-The app contains only the user experience:
+The extension handles Yahoo. The `app/` folder is the user-facing Fantasy Intel application and can run inside Chrome or as a normal localhost website.
+
+## Canonical player identity
+
+Starting with v3.1.0, `public.fantasy_players` is the authoritative player registry used by Fantasy Intel.
+
+The extension reads players directly from Yahoo Fantasy Football and writes them into `fantasy_players`:
+
+```text
+Yahoo /players
+Yahoo team rosters
+        ↓
+public.fantasy_players
+        ↓ player_key + yahoo_player_key
+fantasy_league_rosters
+intel_items
+planner_player_tags
+        ↓
+Fantasy Intel player cards
+```
+
+`draft_player_catalog` is now secondary enrichment only for rank, role and aliases. It is not the authoritative player identity source.
+
+Every Yahoo roster row is connected to `fantasy_players.player_key`. `intel_items` also stores `player_key` and `yahoo_player_key`, so the app joins Intel to the actual Yahoo-synced player instead of guessing by display name.
+
+Supabase also has automatic linking triggers:
+- new Intel is linked to an existing Yahoo player when possible
+- if Intel exists before Yahoo has synced that player, a later Yahoo player sync can attach the waiting Intel automatically
+- suffix differences such as `Aaron Jones` vs `Aaron Jones Sr.` and `James Cook` vs `James Cook III` are normalized during linking
+
+## Yahoo player sync
+
+A Yahoo sync now:
+1. detects the current manager/team
+2. reads the Yahoo team list
+3. walks the Yahoo `/players` pages
+4. upserts those Yahoo players into `public.fantasy_players`
+5. reads every team roster
+6. ensures every rostered Yahoo player exists in `fantasy_players`
+7. writes roster rows using that canonical `player_key`
+8. syncs league matchups
+
+This means the same Yahoo player identity is used by the extension, the local app and the Intel system.
+
+## User app
+
+The user application currently contains:
 - MY TEAM
 - MATCHUPS
 - LEAGUE
 
-It does not expose the private Fantasy Intel admin/research navigation from the older Vercel application.
+It does not expose the private research/admin navigation from the older Vercel fantasy site.
 
-## Identity model
+The app loads:
+- `fantasy_players`
+- `fantasy_league_teams`
+- `fantasy_league_rosters`
+- `fantasy_league_matchups`
+- `planner_player_tags`
+- active `intel_items`
 
-There is no global `is_my_team` assumption in the UI.
+Intel lookup order is:
+1. `player_key`
+2. `yahoo_player_key`
+3. normalized player name only as a final compatibility fallback
 
-The extension identifies the manager from Yahoo:
-
-- `/f1/497223/6` -> House of the Dragon
-- `/f1/497223/1` -> TEAM DOG SCIENCE
-
-That identity is stored locally in the browser. The same shared league data can therefore render a different MY TEAM for each manager.
-
-## Run the user app locally
+## Run locally
 
 No dependency install is required.
 
@@ -82,8 +120,6 @@ From the repository root:
 ```bash
 npm run dev
 ```
-
-The included zero-dependency Node server starts on port `4173`.
 
 Open:
 
@@ -98,9 +134,7 @@ Choose a team manually
 http://localhost:4173/app/?league=497223
 ```
 
-Local mode reads the same synced Supabase data and lets you test MY TEAM, MATCHUPS and LEAGUE in a normal browser URL.
-
-Yahoo scraping/sync itself still belongs to the extension. In LOCAL DEV mode, press REFRESH after syncing Yahoo from the extension.
+The local app reads the same Supabase data. Yahoo scraping itself still runs through the installed Chrome extension because it needs the manager's logged-in Yahoo browser session.
 
 ## Load the Chrome extension
 
@@ -109,8 +143,9 @@ Yahoo scraping/sync itself still belongs to the extension. In LOCAL DEV mode, pr
 3. Turn on Developer mode.
 4. Click **Load unpacked**.
 5. Select the repository root.
-6. Open your own Yahoo team page once.
+6. Open your Yahoo team page once.
 7. Refresh Yahoo.
+8. Click **SYNC YAHOO**.
 
 After code updates:
 
@@ -120,39 +155,27 @@ git pull
 
 Then click **Reload** for Fantasy Intel in `chrome://extensions`.
 
-## Opening Fantasy Intel from Yahoo
+## Identity model
 
-The Yahoo overlay no longer navigates directly to an internal extension URL from the Yahoo webpage.
+There is no global `is_my_team` assumption.
 
-It sends an `OPEN_APP` message to `background.js`, and the service worker opens:
+For the current league:
+- `/f1/497223/6` identifies House of the Dragon
+- `/f1/497223/1` identifies TEAM DOG SCIENCE
 
-```text
-app/index.html?league=497223&team=<detected-team>
-```
+Each Chrome profile remembers its own Yahoo team locally, while both managers use the same shared league/player/Intel data.
 
-This avoids the direct `window.open(chrome-extension://...)` path that was producing `ERR_BLOCKED_BY_CLIENT` during testing.
+## Current public-release limitation
 
-## Local/runtime bridge
+v3.1.0 is still intentionally tied to Battle of the Kings and the current FantasyIntel Supabase project for testing.
 
-`app/js/runtime.js` allows the same app code to run in two modes:
-
-- **EXTENSION** - reads Chrome storage, can trigger Yahoo sync, can open Yahoo with Chrome tabs API.
-- **LOCAL DEV** - reads `?league=` and `?team=` from the normal localhost URL and stores the selected team in localStorage.
-
-This is deliberate. We can develop the UI locally without continually reloading Chrome, while the installed extension remains the Yahoo connector.
-
-## Current limitation before public release
-
-Version 3.0.0 is still intentionally tied to Battle of the Kings and the current FantasyIntel Supabase project. It is ready for Justin + same-league friend testing, not public Chrome Web Store distribution.
-
-Before public release we still need to:
-- discover any Yahoo league dynamically instead of hard-coding `497223`
-- create a proper league registry instead of the temporary `battle-of-the-kings-2026` mapping
-- add authentication/user memberships
+Before public Chrome Web Store distribution we still need to:
+- detect arbitrary Yahoo league IDs dynamically
+- create a generic league registry
+- add authentication and user/league memberships
 - secure shared data with Supabase RLS
-- stop exposing any writable shared-data path through a public anonymous client
-- publish through the Chrome Web Store for automatic updates
+- remove anonymous public write access
 
 ## Source of truth
 
-`Justindema76/Yahoo-Fantasy-Extension` is the only extension source of truth going forward.
+`Justindema76/Yahoo-Fantasy-Extension` is the extension source of truth going forward.
