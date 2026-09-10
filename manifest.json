@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Fantasy Intel Yahoo League Sync",
-  "version": "3.4.1",
+  "version": "3.4.2",
   "description": "Sync Battle of the Kings Yahoo players, weekly scores, projections, team ownership, matchups and waivers into Fantasy Intel.",
   "permissions": [
     "storage",
@@ -21,6 +21,7 @@
         "https://football.fantasysports.yahoo.com/*"
       ],
       "js": [
+        "identity-bridge.js",
         "db-normalizer.js",
         "league-sync.js",
         "overlay.js"
