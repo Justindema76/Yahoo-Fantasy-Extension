@@ -5,7 +5,7 @@ chrome.runtime.onMessage.addListener((message,sender,sendResponse)=>{
     const params=new URLSearchParams();
     params.set('league','497223');
     if(message.week)params.set('week',String(message.week));
-    const url=chrome.runtime.getURL(`app/team/index.html?${params}`);
+    const url=chrome.runtime.getURL(`app/index.html?${params}`);
     chrome.tabs.create({url}).then(()=>sendResponse({ok:true,url})).catch(error=>sendResponse({ok:false,error:error.message}));
     return true;
   }
