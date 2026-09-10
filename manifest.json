@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Fantasy Intel Yahoo League Sync",
-  "version": "2.7.0",
-  "description": "Yahoo fantasy sync with a standalone My Team Intel dashboard that groups actionable Intel by roster player.",
+  "version": "3.0.0",
+  "description": "Sync Yahoo Fantasy Football and open the organized Fantasy Intel My Team, Matchups and League app.",
   "permissions": [
     "storage",
     "activeTab",
