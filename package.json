@@ -1,6 +1,6 @@
 {
   "name": "fantasy-intel-yahoo-extension",
-  "version": "3.4.0",
+  "version": "3.4.1",
   "private": true,
   "description": "Fantasy Intel Yahoo extension and locally runnable user dashboard",
   "scripts": {
