@@ -15,26 +15,15 @@ export async function loadLeagueData(leagueId){
   const leagueKey=leagueKeyFor(leagueId);
   const teams=await api(`fantasy_league_teams?select=*&league_key=eq.${leagueKey}&active=eq.true&order=yahoo_team_key.asc`);
   const teamIds=(teams||[]).map(t=>t.id).filter(Boolean);
-  const rosterPath=teamIds.length
-    ?`fantasy_league_rosters?select=*&active=eq.true&league_team_id=${inFilter(teamIds)}&order=roster_slot.asc,yahoo_player_name.asc`
-    :'fantasy_league_rosters?select=*&id=eq.__none__';
-
-  const [players,rosters,matchups,planner,intel]=await Promise.all([
-    api('fantasy_players?select=player_key,yahoo_player_key,yahoo_name,player_name,team,position,role,yahoo_rank,yahoo_rank_source,source,yahoo_verified,last_seen_at,updated_at&active=eq.true'),
+  const rosterPath=teamIds.length?`fantasy_league_rosters?select=*&active=eq.true&league_team_id=${inFilter(teamIds)}`:'fantasy_league_rosters?select=*&id=eq.__none__';
+  const [rosters,matchups,planner,intel,weekStats,pool,players]=await Promise.all([
     api(rosterPath),
     api(`fantasy_league_matchups?select=*&league_key=eq.${leagueKey}&order=week.asc,matchup_key.asc`),
     api('planner_player_tags?select=player_key,player_name,tags,reason,last_confirmed_date,updated_at'),
-    api('intel_items?select=player_key,yahoo_player_key,player_name,team,position,action,priority,status,recommendation,what_changed,next_trigger,injury_related,source_note,last_confirmed_date,last_checked_at,updated_at&resolved_at=is.null&transfer_to_live=eq.true&order=updated_at.desc')
+    api('intel_items?select=player_key,yahoo_player_key,player_name,team,position,action,priority,status,recommendation,what_changed,next_trigger,injury_related,source_note,last_confirmed_date,last_checked_at,updated_at&resolved_at=is.null&transfer_to_live=eq.true&order=updated_at.desc'),
+    api(`fantasy_player_week_stats?select=*&league_key=eq.${leagueKey}&order=week.asc`),
+    api(`fantasy_league_player_pool?select=*&league_key=eq.${leagueKey}&order=availability_status.asc,position.asc,yahoo_player_name.asc`),
+    api('fantasy_players?select=player_key,yahoo_player_key,yahoo_name,player_name,team,position,yahoo_rank,role,active&active=eq.true')
   ]);
-
-  return {
-    leagueId:String(leagueId),
-    leagueKey,
-    players:players||[],
-    teams:teams||[],
-    rosters:rosters||[],
-    matchups:matchups||[],
-    planner:planner||[],
-    intel:intel||[]
-  };
+  return {leagueId:String(leagueId),leagueKey,teams:teams||[],rosters:rosters||[],matchups:matchups||[],planner:planner||[],intel:intel||[],weekStats:weekStats||[],pool:pool||[],players:players||[]};
 }
