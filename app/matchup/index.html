@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#f4f7fb">
   <title>My Matchup · Fantasy Intel</title>
   <link rel="stylesheet" href="../css/app.css">
+  <link rel="stylesheet" href="../css/mobile.css">
 </head>
 <body data-page="matchup">
   <div class="shell">
@@ -28,25 +29,23 @@
     <div id="notice" class="notice" hidden></div>
 
     <section class="card">
-      <div class="card-head matchup-head">
-        <div>
-          <p class="eyebrow">THIS WEEK</p>
-          <h2>Opponent Intel</h2>
-          <p>Your opponent's players, weekly points, projections and Intel.</p>
-        </div>
+      <div class="matchup-toolbar">
         <div class="week-controls">
           <button id="prevWeek" type="button" aria-label="Previous week">‹</button>
           <select id="weekSelect" aria-label="Select week"></select>
           <button id="nextWeek" type="button" aria-label="Next week">›</button>
         </div>
+        <a id="allMatchupsLink" class="all-matchups-link" href="../league/">ALL MATCHUPS</a>
       </div>
-      <div id="matchupTeams" class="matchup-summary"></div>
-      <div class="section-label" id="opponentTitle">Opponent Players</div>
-      <div id="matchupBody"></div>
+      <div id="scoreArea"></div>
+      <div id="matchupBody" class="matchup-list"></div>
       <div class="bench-bar"><button id="benchToggle" class="bench-toggle" type="button">SHOW OPPONENT BENCH ▼</button></div>
-      <div id="opponentBench" hidden></div>
+      <div id="opponentBenchWrap" hidden>
+        <div id="opponentBenchTitle" class="opponent-bench-title">Opponent Bench</div>
+        <div id="opponentBench"></div>
+      </div>
     </section>
   </div>
-  <script type="module" src="../js/app.js"></script>
+  <script type="module" src="../js/matchup.js"></script>
 </body>
 </html>
