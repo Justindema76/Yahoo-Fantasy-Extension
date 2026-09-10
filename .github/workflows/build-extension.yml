@@ -35,7 +35,17 @@ jobs:
           node --check league-sync.js
           node --check overlay.js
           node --check popup.js
-          for file in app/js/*.js app/js/views/*.js; do node --check "$file"; done
+          find app/js -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+
+      - name: Verify rebuilt Fantasy Intel pages
+        shell: bash
+        run: |
+          test -f app/index.html
+          test -f app/team.html
+          test -f app/players.html
+          test -f app/league.html
+          test -f app/all-matchups.html
+          test -f app/js/site.js
 
       - name: Build extension ZIP
         shell: bash
