@@ -1,6 +1,7 @@
 (() => {
   'use strict';
-  if(!location.pathname.startsWith('/f1/497223'))return;
+  const LEAGUE='497223';
+  if(!location.pathname.startsWith(`/f1/${LEAGUE}`))return;
   const SITE='https://2026-fantasy-football.vercel.app/league',ID='fantasy-intel-connection';
   if(document.getElementById(ID))return;
 
@@ -8,7 +9,7 @@
   root.innerHTML=`
     <button id="fi-pill"><span class="fi-dot"></span><b>FANTASY INTEL</b><span id="fi-pill-status">CONNECTED</span></button>
     <section id="fi-panel">
-      <div class="fi-head"><div><small>FANTASY INTEL · v2.4.0</small><strong>Battle of the Kings</strong><span>House of the Dragon · Team 6</span></div><button id="fi-collapse">×</button></div>
+      <div class="fi-head"><div><small>FANTASY INTEL · v2.5.0</small><strong>Battle of the Kings</strong><span id="fi-team-label">Detecting your Yahoo team…</span></div><button id="fi-collapse">×</button></div>
       <div id="fi-status" class="fi-status"><span class="fi-dot"></span><div><b>Extension connected</b><small>Ready to sync Yahoo.</small></div></div>
       <div id="fi-stats" class="fi-stats" hidden><div><b id="fi-teams">0</b><span>TEAMS</span></div><div><b id="fi-players">0</b><span>PLAYERS</span></div><div><b id="fi-matched">0</b><span>MATCHED</span></div><div><b id="fi-unmatched">0</b><span>UNMATCHED</span></div></div>
       <div class="fi-actions"><button id="fi-sync">SYNC ALL TEAMS</button><button id="fi-open">OPEN LEAGUE VIEW</button></div>
@@ -20,7 +21,7 @@
         <div class="fi-error-sub">This box is the diagnostic. You do not need DevTools.</div>
         <div class="fi-error-grid">
           <div><span>STAGE</span><b id="fi-error-stage">—</b></div>
-          <div><span>VERSION</span><b>2.4.0</b></div>
+          <div><span>VERSION</span><b>2.5.0</b></div>
           <div class="wide"><span>ERROR</span><b id="fi-error-message">—</b></div>
           <div class="wide"><span>TEAM / PAGE</span><b id="fi-error-team">—</b></div>
         </div>
@@ -42,13 +43,30 @@
   document.documentElement.append(style,root);
 
   const panel=document.getElementById('fi-panel'),pill=document.getElementById('fi-pill'),status=document.getElementById('fi-status'),syncBtn=document.getElementById('fi-sync'),modal=document.getElementById('fi-error-modal');
-  let lastDiagnostic=null;
+  let lastDiagnostic=null,currentIdentity=null;
+
+  const clean=v=>String(v||'').replace(/\s+/g,' ').trim();
+  function explicitTeamId(){const m=location.pathname.match(new RegExp(`^/f1/${LEAGUE}/(\\d+)(?:/|$)`));return m?m[1]:null}
+  function teamNameFromPage(teamId){
+    if(!teamId)return null;
+    const exact=`/f1/${LEAGUE}/${teamId}`;
+    const names=[...document.querySelectorAll('a[href]')].filter(a=>{try{return new URL(a.getAttribute('href'),location.origin).pathname.replace(/\/$/,'')===exact}catch{return false}}).map(a=>clean(a.textContent)).filter(t=>t&&!/^(roster|players|matchup|edit|team)$/i.test(t));
+    names.sort((a,b)=>b.length-a.length);return names[0]||null;
+  }
+  async function resolveIdentity(){
+    const key=`fantasyIdentity:${LEAGUE}`,data=await chrome.storage.local.get([key,'fantasyLeagueIdentity']);
+    const id=explicitTeamId();
+    if(id){currentIdentity={leagueId:LEAGUE,teamId:id,teamName:teamNameFromPage(id)||data[key]?.teamName||`Yahoo Team ${id}`,detectedFrom:'url',updatedAt:new Date().toISOString()};await chrome.storage.local.set({[key]:currentIdentity,fantasyLeagueIdentity:currentIdentity})}
+    else currentIdentity=data[key]||data.fantasyLeagueIdentity||null;
+    const label=document.getElementById('fi-team-label');if(label)label.textContent=currentIdentity?`${currentIdentity.teamName} · Team ${currentIdentity.teamId}`:'Open your Yahoo team page once so I can identify your team.';
+    return currentIdentity;
+  }
 
   function collapse(){panel.style.display='none';pill.style.display='flex'}function expand(){panel.style.display='block';pill.style.display='none'}
   function setStatus(title,text,type=''){status.className=`fi-status ${type}`.trim();status.querySelector('b').textContent=title;status.querySelector('small').textContent=text;document.getElementById('fi-pill-status').textContent=type==='error'?'ERROR':type==='syncing'?'SYNCING':'CONNECTED'}
-  function showResult(r){if(!r)return;document.getElementById('fi-stats').hidden=false;document.getElementById('fi-teams').textContent=r.teams||0;document.getElementById('fi-players').textContent=r.players||0;document.getElementById('fi-matched').textContent=r.matched||0;document.getElementById('fi-unmatched').textContent=r.unmatched||0;document.getElementById('fi-last').textContent=r.syncedAt?`Last sync: ${new Date(r.syncedAt).toLocaleString()}`:'Last sync complete'}
+  function showResult(r){if(!r)return;if(r.myTeamKey){currentIdentity={leagueId:LEAGUE,teamId:String(r.myTeamKey),teamName:r.myTeamName||`Yahoo Team ${r.myTeamKey}`};chrome.storage.local.set({fantasyLeagueIdentity:currentIdentity,[`fantasyIdentity:${LEAGUE}`]:currentIdentity});const label=document.getElementById('fi-team-label');if(label)label.textContent=`${currentIdentity.teamName} · Team ${currentIdentity.teamId}`;}document.getElementById('fi-stats').hidden=false;document.getElementById('fi-teams').textContent=r.teams||0;document.getElementById('fi-players').textContent=r.players||0;document.getElementById('fi-matched').textContent=r.matched||0;document.getElementById('fi-unmatched').textContent=r.unmatched||0;document.getElementById('fi-last').textContent=r.syncedAt?`Last sync: ${new Date(r.syncedAt).toLocaleString()}`:'Last sync complete'}
   function showError(d){
-    lastDiagnostic=d||{message:'Unknown sync error',stage:'UNKNOWN',page:location.href,version:'2.4.0'};
+    lastDiagnostic=d||{message:'Unknown sync error',stage:'UNKNOWN',page:location.href,version:'2.5.0'};
     document.getElementById('fi-error-stage').textContent=lastDiagnostic.stage||'UNKNOWN';
     document.getElementById('fi-error-message').textContent=lastDiagnostic.message||'Unknown error';
     document.getElementById('fi-error-team').textContent=[lastDiagnostic.teamName,lastDiagnostic.teamId?`Team #${lastDiagnostic.teamId}`:null,lastDiagnostic.yahooPath||lastDiagnostic.page].filter(Boolean).join(' · ');
@@ -62,15 +80,15 @@
       if(r?.result)showResult(r.result);
       if(!r?.ok){showError(r?.diagnostics?.[0]||{message:r?.error||'Sync failed',stage:'SYNC'});return}
       setStatus('Sync complete',`${r.result.teams} teams · ${r.result.players} players · ${r.result.matchups||0} weekly matchups saved.`);
-    }catch(e){showError({message:e.message,stage:'OVERLAY MESSAGE',page:location.href,version:'2.4.0',stack:e.stack})}
+    }catch(e){showError({message:e.message,stage:'OVERLAY MESSAGE',page:location.href,version:'2.5.0',stack:e.stack})}
     finally{syncBtn.disabled=false;syncBtn.textContent='SYNC ALL TEAMS'}
   }
 
-  document.getElementById('fi-collapse').onclick=collapse;pill.onclick=expand;document.getElementById('fi-open').onclick=()=>window.open(SITE,'_blank','noopener');syncBtn.onclick=runSync;
+  document.getElementById('fi-collapse').onclick=collapse;pill.onclick=expand;document.getElementById('fi-open').onclick=async()=>{const id=(await resolveIdentity())?.teamId;window.open(id?`${SITE}?team=${encodeURIComponent(id)}&league=${LEAGUE}`:SITE,'_blank','noopener')};syncBtn.onclick=runSync;
   document.getElementById('fi-retry').onclick=()=>{modal.hidden=true;runSync()};document.getElementById('fi-clear').onclick=()=>{modal.hidden=true;chrome.storage.local.remove('fantasyLeagueLastError')};
   document.getElementById('fi-copy').onclick=async()=>{try{await navigator.clipboard.writeText(JSON.stringify(lastDiagnostic,null,2));document.getElementById('fi-copy').textContent='COPIED'}catch(_e){document.getElementById('fi-copy').textContent='COPY FAILED'}};
-  chrome.storage.local.get(['fantasyLeagueLastSync','fantasyLeagueLastError']).then(x=>{if(x.fantasyLeagueLastSync)showResult(x.fantasyLeagueLastSync);if(x.fantasyLeagueLastError)showError(x.fantasyLeagueLastError)});
-  window.addEventListener('unhandledrejection',e=>showError({message:String(e.reason?.message||e.reason),stage:'UNHANDLED PROMISE',page:location.href,version:'2.4.0',stack:e.reason?.stack||''}));
-  window.addEventListener('error',e=>showError({message:e.message,stage:'SCRIPT ERROR',page:location.href,version:'2.4.0',file:e.filename,line:e.lineno,column:e.colno}));
+  resolveIdentity();chrome.storage.local.get(['fantasyLeagueLastSync','fantasyLeagueLastError']).then(x=>{if(x.fantasyLeagueLastSync)showResult(x.fantasyLeagueLastSync);if(x.fantasyLeagueLastError)showError(x.fantasyLeagueLastError)});
+  window.addEventListener('unhandledrejection',e=>showError({message:String(e.reason?.message||e.reason),stage:'UNHANDLED PROMISE',page:location.href,version:'2.5.0',stack:e.reason?.stack||''}));
+  window.addEventListener('error',e=>showError({message:e.message,stage:'SCRIPT ERROR',page:location.href,version:'2.5.0',file:e.filename,line:e.lineno,column:e.colno}));
   setTimeout(()=>{if(modal.hidden)collapse()},8000);
 })();
