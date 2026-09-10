@@ -5,13 +5,13 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="robots" content="noindex">
   <title>Fantasy Intel</title>
-  <meta http-equiv="refresh" content="0; url=./app/?league=497223">
+  <meta http-equiv="refresh" content="0; url=./app/?league=497223&team=6">
   <script>
     const params=new URLSearchParams(window.location.search);
     params.set('league','497223');
-    params.delete('team');
+    if(!params.get('team')) params.set('team','6');
     window.location.replace('./app/?'+params.toString()+(window.location.hash||''));
   </script>
 </head>
-<body><p>Opening My Matchup…</p></body>
+<body><p>Opening Fantasy Intel…</p></body>
 </html>
