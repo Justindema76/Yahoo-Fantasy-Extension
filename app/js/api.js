@@ -1,12 +1,19 @@
 import {CONFIG,leagueKeyFor} from './config.js';
 
 const headers={apikey:CONFIG.anonKey,Authorization:`Bearer ${CONFIG.anonKey}`,'Content-Type':'application/json'};
+const PAGE_SIZE=1000;
 
 export async function api(path){
-  const response=await fetch(`${CONFIG.supabaseUrl}/rest/v1/${path}`,{headers,cache:'no-store'});
-  const text=await response.text();
-  if(!response.ok)throw new Error(text||`${response.status} ${response.statusText}`);
-  return text?JSON.parse(text):[];
+  const all=[];
+  for(let from=0;;from+=PAGE_SIZE){
+    const response=await fetch(`${CONFIG.supabaseUrl}/rest/v1/${path}`,{headers:{...headers,Range:`${from}-${from+PAGE_SIZE-1}`},cache:'no-store'});
+    const text=await response.text();
+    if(!response.ok)throw new Error(text||`${response.status} ${response.statusText}`);
+    const rows=text?JSON.parse(text):[];
+    if(!Array.isArray(rows))return rows;
+    all.push(...rows);
+    if(rows.length<PAGE_SIZE)return all;
+  }
 }
 
 function inFilter(values){return `in.(${values.map(v=>String(v)).join(',')})`}
@@ -35,10 +42,7 @@ function overlayPoolWithWeeklyStats(pool,weekStats){
     };
     const out={...raw};
     for(const field of ['fantasy_points','projected_points','opponent','game_time','game_status']){
-      Object.defineProperty(out,field,{enumerable:true,configurable:true,get(){
-        const stat=weekly();
-        return stat?.[field]??null;
-      }});
+      Object.defineProperty(out,field,{enumerable:true,configurable:true,get(){return weekly()?.[field]??null;}});
     }
     return out;
   });
@@ -54,7 +58,7 @@ export async function loadLeagueData(leagueId){
     api(`fantasy_league_matchups?select=*&league_key=eq.${leagueKey}&order=week.asc,matchup_key.asc`),
     api('planner_player_tags?select=player_key,player_name,tags,reason,last_confirmed_date,updated_at'),
     api('intel_items?select=player_key,yahoo_player_key,player_name,team,position,action,priority,status,recommendation,what_changed,next_trigger,injury_related,source_note,last_confirmed_date,last_checked_at,updated_at&resolved_at=is.null&transfer_to_live=eq.true&order=updated_at.desc'),
-    api(`fantasy_player_week_stats?select=*&league_key=eq.${leagueKey}&order=week.asc`),
+    api(`fantasy_player_week_stats?select=*&league_key=eq.${leagueKey}&order=week.asc,yahoo_player_key.asc`),
     api(`fantasy_league_player_pool?select=*&league_key=eq.${leagueKey}&order=availability_status.asc,position.asc,yahoo_player_name.asc`),
     api('fantasy_players?select=player_key,yahoo_player_key,yahoo_name,player_name,team,position,yahoo_rank,role,active&active=eq.true')
   ]);
