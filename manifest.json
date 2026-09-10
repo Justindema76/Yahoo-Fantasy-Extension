@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Fantasy Intel Yahoo League Sync",
-  "version": "3.1.0",
-  "description": "Sync Yahoo Fantasy Football players, rosters and matchups into the organized Fantasy Intel app.",
+  "version": "3.2.0",
+  "description": "Sync Battle of the Kings Yahoo players, rosters, weekly scoring, matchups and waivers into Fantasy Intel.",
   "permissions": [
     "storage",
     "activeTab",
