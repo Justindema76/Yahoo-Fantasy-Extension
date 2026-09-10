@@ -1,0 +1,9 @@
+{
+  "name": "fantasy-intel-yahoo-extension",
+  "version": "3.0.0",
+  "private": true,
+  "description": "Fantasy Intel Yahoo extension and locally runnable user dashboard",
+  "scripts": {
+    "dev": "node dev-server.js"
+  }
+}
