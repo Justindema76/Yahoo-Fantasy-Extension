@@ -9,6 +9,7 @@
   const VERSION='3.4.0';
   const PAGE_SIZE=25;
   const PAGE_LIMIT=30;
+  const PLAYER_POSITIONS=['O','K','DEF'];
 
   const clean=v=>String(v||'').replace(/\s+/g,' ').trim();
   const norm=v=>clean(v).toLowerCase().normalize('NFKD').replace(/[’']/g,'').replace(/[^a-z0-9]+/g,' ').replace(/\b(jr|sr|ii|iii|iv)\b/g,' ').replace(/\s+/g,' ').trim();
@@ -179,12 +180,12 @@
     return m?Number(m[1]):1;
   }
 
-  async function fetchPlayerPages({status,week,mode}){
+  async function fetchPlayerPages({status='ALL',week,mode,pos}){
     const players=[],seen=new Set();let pages=0;
     const stat1=mode==='projection'?`P_W_${week}`:`S_W_${week}`;
     for(let pageIndex=0;pageIndex<PAGE_LIMIT;pageIndex++){
       const offset=pageIndex*PAGE_SIZE;
-      const q=new URLSearchParams({status,stat1,pos:'O'});
+      const q=new URLSearchParams({status,stat1,pos});
       if(offset)q.set('count',String(offset));
       const path=`/f1/${LEAGUE}/players?${q}`;
       const doc=await page(path);
@@ -196,7 +197,7 @@
         seen.add(key);players.push(row);added++;
       }
       pages++;
-      if(pageIndex===0&&!rows.length)throw Object.assign(new Error(`Yahoo Players returned 0 rows for status=${status}, ${stat1}.`),{context:{path,title:doc.title||'',tableRows:doc.querySelectorAll('tr').length}});
+      if(pageIndex===0&&!rows.length)throw Object.assign(new Error(`Yahoo Players returned 0 rows for status=${status}, pos=${pos}, ${stat1}.`),{context:{path,title:doc.title||'',tableRows:doc.querySelectorAll('tr').length}});
       if(added===0||rows.length<PAGE_SIZE)break;
     }
     return{players,pages};
@@ -212,16 +213,17 @@
     }
     return [...map.values()];
   }
+  async function fetchAllPositions(week,mode){
+    const feeds=[];let pages=0;
+    for(const pos of PLAYER_POSITIONS){const result=await fetchPlayerPages({status:'ALL',week,mode,pos});feeds.push(result.players);pages+=result.pages}
+    return{players:mergePlayerFeeds(...feeds),pages};
+  }
   async function loadYahooMasterWeek(week,{projection=true}={}){
     await progress('SYNC MASTER YAHOO PLAYERS',{week});
-    const actualA=await fetchPlayerPages({status:'A',week,mode:'actual'});
-    const actualT=await fetchPlayerPages({status:'T',week,mode:'actual'});
-    let projA={players:[],pages:0},projT={players:[],pages:0},projectionWarning=null;
-    if(projection){
-      try{projA=await fetchPlayerPages({status:'A',week,mode:'projection'});projT=await fetchPlayerPages({status:'T',week,mode:'projection'})}
-      catch(e){projectionWarning=e.message}
-    }
-    return{players:mergePlayerFeeds(actualA.players,actualT.players,projA.players,projT.players),pages:actualA.pages+actualT.pages+projA.pages+projT.pages,projectionWarning};
+    const actual=await fetchAllPositions(week,'actual');
+    let projected={players:[],pages:0},projectionWarning=null;
+    if(projection){try{projected=await fetchAllPositions(week,'projection')}catch(e){projectionWarning=e.message}}
+    return{players:mergePlayerFeeds(actual.players,projected.players),pages:actual.pages+projected.pages,projectionWarning};
   }
 
   function buildCatalogIndex(rows){
@@ -293,7 +295,7 @@
     await progress('SAVE MASTER WEEKLY PLAYER SCORES',{week,players:masterPlayers.length});
     const resolved=await upsertFantasyPlayers(masterPlayers,index,catalog,when,`Yahoo Players Week ${week}`),resolvedByYahoo=new Map(resolved.map(p=>[String(p.yahoo_player_key),p]));
     const rosters=await db(`fantasy_league_rosters?select=*&league_team_id=in.(${teams.map(t=>t.id).join(',')})&active=eq.true`),assignments=rosterAssignmentMap(rosters,teams),existing=await db(`fantasy_player_week_stats?select=*&league_key=eq.${LEAGUE_KEY}&week=eq.${week}`),existingByYahoo=new Map((existing||[]).map(r=>[String(r.yahoo_player_key),r]));
-    const payload=masterPlayers.map(row=>{const p=resolvedByYahoo.get(String(row.yahooPlayerKey)),assignment=assignments.get(String(row.yahooPlayerKey)),old=existingByYahoo.get(String(row.yahooPlayerKey)),useOldOwner=week<currentWeek&&old?.owning_team_id,owner=useOldOwner?{league_team_id:old.owning_team_id,roster_slot:old.roster_slot,lineup_order:old.lineup_order,is_starter:old.is_starter,teamName:old.owning_team_name}:assignment;return{league_key:LEAGUE_KEY,week,player_key:p?.player_key||null,yahoo_player_key:String(row.yahooPlayerKey),yahoo_player_name:p?.yahoo_name||row.name,league_team_id:owner?.league_team_id||null,roster_slot:owner?.roster_slot||null,lineup_order:owner?.lineup_order??null,is_starter:typeof owner?.is_starter==='boolean'?owner.is_starter:(owner?.roster_slot?isStarter(owner.roster_slot):false),nfl_team:p?.team||row.team||null,position:p?.position||row.position||null,opponent:row.opponent,game_time:row.gameTime,game_status:row.gameStatus,fantasy_points:row.fantasyPoints,projected_points:row.projectedPoints,availability_status:availabilityFromPlayer(row,assignment),owning_team_id:owner?.league_team_id||assignment?.league_team_id||null,owning_team_name:owner?.teamName||assignment?.team?.team_name||old?.owning_team_name||null,yahoo_rank:row.yahooRank,percent_rostered:row.percentRostered,percent_started:row.percentStarted,source:'Yahoo Players',last_synced_at:when,updated_at:when}});
+    const payload=masterPlayers.map(row=>{const p=resolvedByYahoo.get(String(row.yahooPlayerKey)),assignment=assignments.get(String(row.yahooPlayerKey)),old=existingByYahoo.get(String(row.yahooPlayerKey)),useOldOwner=week<currentWeek&&old?.owning_team_id,owner=useOldOwner?{league_team_id:old.owning_team_id,roster_slot:old.roster_slot,lineup_order:old.lineup_order,is_starter:old.is_starter,teamName:old.owning_team_name}:assignment;return{league_key:LEAGUE_KEY,week,player_key:p?.player_key||old?.player_key||null,yahoo_player_key:String(row.yahooPlayerKey),yahoo_player_name:p?.yahoo_name||row.name,league_team_id:owner?.league_team_id||null,roster_slot:owner?.roster_slot||null,lineup_order:owner?.lineup_order??null,is_starter:typeof owner?.is_starter==='boolean'?owner.is_starter:(owner?.roster_slot?isStarter(owner.roster_slot):false),nfl_team:p?.team||row.team||old?.nfl_team||null,position:p?.position||row.position||old?.position||null,opponent:row.opponent||old?.opponent||null,game_time:row.gameTime||old?.game_time||null,game_status:row.gameStatus||old?.game_status||null,fantasy_points:row.fantasyPoints??old?.fantasy_points??null,projected_points:row.projectedPoints??old?.projected_points??null,availability_status:availabilityFromPlayer(row,assignment),owning_team_id:owner?.league_team_id||assignment?.league_team_id||null,owning_team_name:owner?.teamName||assignment?.team?.team_name||old?.owning_team_name||null,yahoo_rank:row.yahooRank??old?.yahoo_rank??null,percent_rostered:row.percentRostered??old?.percent_rostered??null,percent_started:row.percentStarted??old?.percent_started??null,source:'Yahoo Players',last_synced_at:when,updated_at:when}});
     for(let i=0;i<payload.length;i+=100)await db('fantasy_player_week_stats?on_conflict=league_key,week,yahoo_player_key',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(payload.slice(i,i+100))});
     return payload.length;
   }
@@ -305,12 +307,14 @@
       const teams=teamsFrom(teamsDoc);if(teams.length<2)throw new Error(`Yahoo team list could not be read. Detected ${teams.length} teams.`);
       const identity=await resolveIdentity(teams),catalog=buildCatalogIndex(catalogRows||[]),index=buildPlayerIndex(existingPlayers||[]),currentWeek=detectCurrentWeek(teamsDoc),currentMaster=await loadYahooMasterWeek(currentWeek,{projection:true});
       await upsertFantasyPlayers(currentMaster.players,index,catalog,when,'Yahoo Players master feed');
-      const result={version:VERSION,leagueId:LEAGUE,myTeamKey:identity.teamId,myTeamName:identity.teamName,currentWeek,teams:0,players:0,masterPlayers:currentMaster.players.length,masterPages:currentMaster.pages,projectionWarning:currentMaster.projectionWarning,matchups:0,matchupWeeks:0,weekStatRows:0,playerPool:null,errors:[],warnings:[],syncedAt:when};
+      const result={version:VERSION,leagueId:LEAGUE,myTeamKey:identity.teamId,myTeamName:identity.teamName,currentWeek,teams:0,players:0,masterPlayers:currentMaster.players.length,projectedPlayers:currentMaster.players.filter(p=>p.projectedPoints!==null&&p.projectedPoints!==undefined).length,masterPages:currentMaster.pages,projectionWarning:currentMaster.projectionWarning,matchups:0,matchupWeeks:0,weekStatRows:0,playerPool:null,errors:[],warnings:[],syncedAt:when};
+      if(result.projectionWarning)result.warnings.push({week:currentWeek,message:result.projectionWarning});
       for(const team of teams){try{const r=await saveTeam(team,existingTeams,index,catalog,when);result.teams++;result.players+=r.total}catch(e){result.errors.push(await fail(e,{teamId:team.id,teamName:team.name}))}}
       const refreshedTeams=await db(`fantasy_league_teams?select=*&league_key=eq.${LEAGUE_KEY}&active=eq.true`),schedule=await syncAllMatchups(refreshedTeams,when);result.matchups=schedule.matchups;result.matchupWeeks=schedule.weeks;result.warnings.push(...schedule.warnings);
       result.playerPool=await saveCurrentPlayerPool(currentMaster.players,refreshedTeams,index,catalog,currentWeek,when);
       for(let week=1;week<=currentWeek;week++){try{const master=week===currentWeek?currentMaster:await loadYahooMasterWeek(week,{projection:false});result.weekStatRows+=await saveMasterWeekStats(week,master.players,refreshedTeams,index,catalog,currentWeek,when)}catch(e){result.warnings.push({week,message:e.message})}}
-      await progress(result.errors.length?'PARTIAL SYNC':'COMPLETE',{teams:result.teams,rosterSpots:result.players,masterPlayers:result.masterPlayers,matchups:result.matchups,weekStatRows:result.weekStatRows,pool:result.playerPool?.total||0});last=result;await chrome.storage.local.set({fantasyLeagueLastSync:result,fantasyLeagueLastError:result.errors.at(-1)||null});return result;
+      if(!result.projectedPlayers)result.warnings.push({week:currentWeek,message:'Yahoo player projections were not detected. Team projections will remain blank until player projections are captured.'});
+      await progress(result.errors.length?'PARTIAL SYNC':'COMPLETE',{teams:result.teams,rosterSpots:result.players,masterPlayers:result.masterPlayers,projectedPlayers:result.projectedPlayers,matchups:result.matchups,weekStatRows:result.weekStatRows,pool:result.playerPool?.total||0});last=result;await chrome.storage.local.set({fantasyLeagueLastSync:result,fantasyLeagueLastError:result.errors.at(-1)||null});return result;
     }catch(e){await fail(e,e.context||{});throw e}finally{syncing=false}
   }
 
