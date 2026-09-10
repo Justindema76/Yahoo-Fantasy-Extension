@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#07111f">
+  <title>Fantasy Intel</title>
+  <link rel="stylesheet" href="./css/app.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <p class="eyebrow">FANTASY INTEL</p>
+        <h1 id="teamTitle">Choose Your Team</h1>
+        <p class="subline"><span id="leagueLabel">Yahoo League</span> · <span id="modeLabel">Loading…</span></p>
+      </div>
+      <div class="top-actions">
+        <label class="team-picker-wrap" for="teamPicker">
+          <span>MY TEAM</span>
+          <select id="teamPicker"><option value="">Choose team…</option></select>
+        </label>
+        <button id="syncButton" class="primary" type="button">SYNC YAHOO</button>
+        <button id="refreshButton" type="button">REFRESH</button>
+        <button id="openYahooButton" type="button">OPEN YAHOO</button>
+        <button id="themeButton" type="button" aria-label="Toggle theme">THEME</button>
+      </div>
+    </header>
+
+    <div id="notice" class="notice" hidden></div>
+
+    <section class="summary" aria-label="Team summary">
+      <div><b id="rosterCount">—</b><span>ROSTER</span></div>
+      <div><b id="starterCount">—</b><span>STARTERS</span></div>
+      <div><b id="benchCount">—</b><span>BENCH / IR</span></div>
+      <div><b id="intelCount">—</b><span>INTEL</span></div>
+    </section>
+
+    <nav class="tabs" aria-label="Fantasy Intel views">
+      <button class="tab active" data-view="team">MY TEAM</button>
+      <button class="tab" data-view="matchups">MATCHUPS</button>
+      <button class="tab" data-view="league">LEAGUE</button>
+    </nav>
+
+    <main>
+      <section id="teamView" class="view active">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">YOUR ROSTER</p>
+            <h2>My Team</h2>
+            <p id="teamMeta">Choose your Yahoo team to load your roster.</p>
+          </div>
+          <input id="teamSearch" type="search" placeholder="Search your roster…" autocomplete="off">
+        </div>
+        <div id="startersSection" class="roster-section"></div>
+        <div id="benchSection" class="roster-section"></div>
+      </section>
+
+      <section id="matchupsView" class="view">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">SEASON SCHEDULE</p>
+            <h2>Matchups</h2>
+            <p>Your matchup is highlighted automatically.</p>
+          </div>
+        </div>
+        <div id="weekPicker" class="week-picker"></div>
+        <div id="myMatchup" class="my-matchup"></div>
+        <div id="matchups" class="matchups"></div>
+      </section>
+
+      <section id="leagueView" class="view">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">LEAGUE OWNERSHIP</p>
+            <h2>All Teams</h2>
+            <p>Every synced Yahoo roster in one place.</p>
+          </div>
+          <input id="leagueSearch" type="search" placeholder="Search team or player…" autocomplete="off">
+        </div>
+        <section class="league-summary" aria-label="League summary">
+          <div><b id="leagueTeamCount">—</b><span>TEAMS</span></div>
+          <div><b id="leagueRosterCount">—</b><span>ROSTERED</span></div>
+          <div><b id="matchedCount">—</b><span>MATCHED</span></div>
+          <div><b id="unmatchedCount">—</b><span>UNMATCHED</span></div>
+        </section>
+        <div id="leagueTeams" class="team-grid"></div>
+      </section>
+    </main>
+  </div>
+
+  <nav class="mobile-nav" aria-label="Mobile navigation">
+    <button class="mobile-tab active" data-view="team">MY TEAM</button>
+    <button class="mobile-tab" data-view="matchups">MATCHUPS</button>
+    <button class="mobile-tab" data-view="league">LEAGUE</button>
+  </nav>
+
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>
