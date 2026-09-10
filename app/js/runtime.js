@@ -1,7 +1,11 @@
 const hasExtensionRuntime=()=>typeof chrome!=='undefined'&&Boolean(chrome?.runtime?.id)&&Boolean(chrome?.storage?.local);
 const identityKey=leagueId=>`fantasyIdentity:${leagueId}`;
 
-export function runtimeMode(){return hasExtensionRuntime()?'EXTENSION':'LOCAL DEV'}
+export function runtimeMode(){
+  if(hasExtensionRuntime())return 'EXTENSION';
+  if(['localhost','127.0.0.1'].includes(location.hostname))return 'LOCAL DEV';
+  return 'WEB APP';
+}
 
 export function queryContext(){
   const params=new URLSearchParams(location.search);
@@ -40,7 +44,7 @@ export async function openYahoo(leagueId,teamId=''){
 }
 
 export async function syncYahoo(leagueId){
-  if(!hasExtensionRuntime()||!chrome?.tabs?.query)throw new Error('Local mode can display live synced data, but Yahoo sync itself runs through the Chrome extension. Keep the extension loaded, sync from Yahoo, then press REFRESH here.');
+  if(!hasExtensionRuntime()||!chrome?.tabs?.query)throw new Error('Yahoo sync runs through the Chrome extension. Sync from Yahoo, then press REFRESH in this web/local app.');
   const tabs=await chrome.tabs.query({url:'https://football.fantasysports.yahoo.com/*'});
   const tab=tabs.find(t=>(t.url||'').includes(`/f1/${leagueId}`));
   if(!tab?.id)throw new Error(`Open Yahoo league ${leagueId} in another tab first.`);
