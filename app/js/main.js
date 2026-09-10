@@ -50,30 +50,15 @@ function renderHeader(){
 }
 
 function renderSummary(){
-  const team=myTeam();
-  const rows=rosterFor(team);
-  const starters=rows.filter(r=>!isBenchSlot(r.roster_slot));
-  const bench=rows.filter(r=>isBenchSlot(r.roster_slot));
-  const intelCount=rows.reduce((sum,row)=>sum+playerIntel(row,state.indexes).length,0);
+  const rows=rosterFor(myTeam());
   $('rosterCount').textContent=rows.length;
-  $('starterCount').textContent=starters.length;
-  $('benchCount').textContent=bench.length;
-  $('intelCount').textContent=intelCount;
+  $('starterCount').textContent=rows.filter(r=>!isBenchSlot(r.roster_slot)).length;
+  $('benchCount').textContent=rows.filter(r=>isBenchSlot(r.roster_slot)).length;
+  $('intelCount').textContent=rows.reduce((sum,row)=>sum+playerIntel(row,state.indexes).length,0);
   $('leagueTeamCount').textContent=state.data.teams.length;
   $('leagueRosterCount').textContent=state.data.rosters.length;
   $('matchedCount').textContent=state.data.rosters.filter(r=>r.player_key).length;
   $('unmatchedCount').textContent=state.data.rosters.filter(r=>!r.player_key).length;
-}
-
-function renderAll(){
-  const team=myTeam();
-  const rows=rosterFor(team);
-  renderHeader();
-  renderSummary();
-  renderTeam({team,rows,indexes:state.indexes,query:state.teamQuery});
-  renderWeekPicker(state.week,week=>{state.week=week;renderWeekPicker(state.week,arguments.callee);renderMatchups({matchups:state.data.matchups,myTeamKey:state.identity?.teamId,currentWeek:state.week})});
-  renderMatchups({matchups:state.data.matchups,myTeamKey:state.identity?.teamId,currentWeek:state.week});
-  renderLeague({teams:state.data.teams,rosters:state.data.rosters,indexes:state.indexes,myTeamKey:state.identity?.teamId,query:state.leagueQuery});
 }
 
 function wireWeekPicker(){
@@ -87,7 +72,8 @@ function wireWeekPicker(){
 function rerender(){
   const team=myTeam();
   const rows=rosterFor(team);
-  renderHeader();renderSummary();
+  renderHeader();
+  renderSummary();
   renderTeam({team,rows,indexes:state.indexes,query:state.teamQuery});
   wireWeekPicker();
   renderMatchups({matchups:state.data.matchups,myTeamKey:state.identity?.teamId,currentWeek:state.week});
