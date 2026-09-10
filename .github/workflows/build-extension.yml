@@ -45,7 +45,7 @@ jobs:
           test -f app/index.html
           test -f app/all-matchups.html
           test -f app/css/site.css
-          test -f app/css/player-drawer.css
+          test "$(find app/css -maxdepth 1 -type f -name '*.css' | wc -l | tr -d ' ')" = "1"
           test -f app/js/site.js
           test ! -f app/team.html
           test ! -f app/players.html
