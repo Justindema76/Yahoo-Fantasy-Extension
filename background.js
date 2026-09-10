@@ -12,7 +12,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       });
     });
   })().then(response=>sendResponse(response)).catch(error=>sendResponse({
-    ok:false,error:error.message,diagnostics:[{version:'2.6.0',stage:'BACKGROUND MESSAGE',message:error.message,page:'unknown',time:new Date().toISOString()}]
+    ok:false,error:error.message,diagnostics:[{version:'2.7.0',stage:'BACKGROUND MESSAGE',message:error.message,page:'unknown',time:new Date().toISOString()}]
   }));
   return true;
 });
