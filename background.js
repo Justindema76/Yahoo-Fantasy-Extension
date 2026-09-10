@@ -1,12 +1,12 @@
 const VERSION=chrome.runtime.getManifest().version;
+const APP_URL='https://justindema76.github.io/Yahoo-Fantasy-Extension/app/';
 
 chrome.runtime.onMessage.addListener((message,sender,sendResponse)=>{
   if(message?.type==='OPEN_APP'){
-    const params=new URLSearchParams();
-    params.set('league','497223');
-    if(message.week)params.set('week',String(message.week));
-    const url=chrome.runtime.getURL(`app/index.html?${params}`);
-    chrome.tabs.create({url}).then(()=>sendResponse({ok:true,url})).catch(error=>sendResponse({ok:false,error:error.message}));
+    const url=new URL(APP_URL);
+    url.searchParams.set('league','497223');
+    if(message.week)url.searchParams.set('week',String(message.week));
+    chrome.tabs.create({url:url.toString()}).then(()=>sendResponse({ok:true,url:url.toString()})).catch(error=>sendResponse({ok:false,error:error.message}));
     return true;
   }
 
@@ -22,8 +22,6 @@ chrome.runtime.onMessage.addListener((message,sender,sendResponse)=>{
         resolve(response||{ok:false,error:'No response from Yahoo sync script.'});
       });
     });
-  })().then(response=>sendResponse(response)).catch(error=>sendResponse({
-    ok:false,error:error.message,diagnostics:[{version:VERSION,stage:'BACKGROUND MESSAGE',message:error.message,page:'unknown',time:new Date().toISOString()}]
-  }));
+  })().then(response=>sendResponse(response)).catch(error=>sendResponse({ok:false,error:error.message,diagnostics:[{version:VERSION,stage:'BACKGROUND MESSAGE',message:error.message,page:'unknown',time:new Date().toISOString()}]}));
   return true;
 });
