@@ -1,4 +1,4 @@
-const VERSION='3.0.0';
+const VERSION=chrome.runtime.getManifest().version;
 
 chrome.runtime.onMessage.addListener((message,sender,sendResponse)=>{
   if(message?.type==='OPEN_APP'){
