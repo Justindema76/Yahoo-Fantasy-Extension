@@ -1,4 +1,3 @@
-const SITE_URL='https://2026-fantasy-football.vercel.app/league';
 const LEAGUE='497223';
 const syncButton=document.getElementById('syncButton');
 const openButton=document.getElementById('openButton');
@@ -19,7 +18,6 @@ async function loadIdentity(){
   const data=await chrome.storage.local.get(['fantasyLeagueIdentity']);
   showIdentity(data.fantasyLeagueIdentity||null);
 }
-
 function setStatus(title,text,type=''){
   status.className=`status ${type}`.trim();
   statusTitle.textContent=title;
@@ -53,7 +51,8 @@ syncButton.addEventListener('click',async()=>{
   }catch(error){setStatus('Sync failed',error.message,'error')}
   finally{syncButton.disabled=false;syncButton.textContent='SYNC ALL TEAMS'}
 });
-openButton.addEventListener('click',async()=>{await loadIdentity();const url=identity?.teamId?`${SITE_URL}?team=${encodeURIComponent(identity.teamId)}&league=${LEAGUE}`:SITE_URL;chrome.tabs.create({url})});
+
+openButton.addEventListener('click',()=>chrome.tabs.create({url:chrome.runtime.getURL('dashboard/index.html')}));
 
 (async()=>{
   try{
