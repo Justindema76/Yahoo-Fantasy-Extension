@@ -68,14 +68,14 @@
 
     <section id="view-players" class="view" data-view-panel="players" hidden>
       <div class="card">
-        <div class="view-title"><div><p class="eyebrow">PLAYER POOL</p><h2>Waivers & Available Players</h2><p>Yahoo availability, weekly scoring and Fantasy Intel in one list.</p></div></div>
+        <div class="view-title"><div><p class="eyebrow">YAHOO PLAYER DATABASE</p><h2>All Players</h2><p>Built directly from Yahoo Players: rostered, free agents and waivers, with weekly scoring, projections and Fantasy Intel.</p></div></div>
         <div class="filters">
-          <input id="playerSearch" type="search" placeholder="Search players…" autocomplete="off">
+          <input id="playerSearch" type="search" placeholder="Search all Yahoo players…" autocomplete="off">
           <select id="positionFilter" aria-label="Position"><option value="">ALL POS</option><option>QB</option><option>RB</option><option>WR</option><option>TE</option><option>K</option><option>DEF</option></select>
-          <select id="statusFilter" aria-label="Availability"><option value="AVAILABLE">AVAILABLE</option><option value="FREE_AGENT">FREE AGENT</option><option value="WAIVERS">WAIVERS</option><option value="ROSTERED">ROSTERED</option><option value="ALL">ALL</option></select>
+          <select id="statusFilter" aria-label="Availability"><option value="ALL">ALL PLAYERS</option><option value="AVAILABLE">AVAILABLE</option><option value="FREE_AGENT">FREE AGENT</option><option value="WAIVERS">WAIVERS</option><option value="ROSTERED">ROSTERED</option></select>
           <select id="sortFilter" aria-label="Sort"><option value="INTEL">INTEL</option><option value="PROJ">PROJECTION</option><option value="RANK">YAHOO RANK</option></select>
         </div>
-        <div id="playerCount" class="results-meta">0 players</div>
+        <div id="playerCount" class="results-meta">0 Yahoo players</div>
         <div id="playerPool"></div>
       </div>
     </section>
