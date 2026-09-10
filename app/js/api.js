@@ -10,6 +10,39 @@ export async function api(path){
 }
 
 function inFilter(values){return `in.(${values.map(v=>String(v)).join(',')})`}
+function selectedWeek(fallback=1){
+  const value=Number(new URLSearchParams(location.search).get('week'));
+  return Number.isFinite(value)&&value>=1&&value<=18?value:Number(fallback)||1;
+}
+function weeklyIndex(rows){
+  const byWeekYahoo=new Map(),byWeekPlayer=new Map();
+  for(const row of rows||[]){
+    const week=Number(row.week)||1;
+    if(row.yahoo_player_key)byWeekYahoo.set(`${week}:${String(row.yahoo_player_key)}`,row);
+    if(row.player_key)byWeekPlayer.set(`${week}:${String(row.player_key)}`,row);
+  }
+  return {byWeekYahoo,byWeekPlayer};
+}
+function overlayPoolWithWeeklyStats(pool,weekStats){
+  const index=weeklyIndex(weekStats);
+  return (pool||[]).map(base=>{
+    const raw={...base};
+    const weekly=()=>{
+      const week=selectedWeek(raw.current_week||1);
+      return (raw.yahoo_player_key&&index.byWeekYahoo.get(`${week}:${String(raw.yahoo_player_key)}`))
+        ||(raw.player_key&&index.byWeekPlayer.get(`${week}:${String(raw.player_key)}`))
+        ||null;
+    };
+    const out={...raw};
+    for(const field of ['fantasy_points','projected_points','opponent','game_time','game_status']){
+      Object.defineProperty(out,field,{enumerable:true,configurable:true,get(){
+        const stat=weekly();
+        return stat?.[field]??null;
+      }});
+    }
+    return out;
+  });
+}
 
 export async function loadLeagueData(leagueId){
   const leagueKey=leagueKeyFor(leagueId);
@@ -25,5 +58,5 @@ export async function loadLeagueData(leagueId){
     api(`fantasy_league_player_pool?select=*&league_key=eq.${leagueKey}&order=availability_status.asc,position.asc,yahoo_player_name.asc`),
     api('fantasy_players?select=player_key,yahoo_player_key,yahoo_name,player_name,team,position,yahoo_rank,role,active&active=eq.true')
   ]);
-  return {leagueId:String(leagueId),leagueKey,teams:teams||[],rosters:rosters||[],matchups:matchups||[],planner:planner||[],intel:intel||[],weekStats:weekStats||[],pool:pool||[],players:players||[]};
+  return {leagueId:String(leagueId),leagueKey,teams:teams||[],rosters:rosters||[],matchups:matchups||[],planner:planner||[],intel:intel||[],weekStats:weekStats||[],pool:overlayPoolWithWeeklyStats(pool||[],weekStats||[]),players:players||[]};
 }
