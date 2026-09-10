@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#f4f7fb">
   <title>House of the Dragon · Fantasy Intel</title>
   <link rel="stylesheet" href="../css/app.css">
+  <link rel="stylesheet" href="../css/mobile.css">
 </head>
 <body data-page="team">
   <div class="shell">
@@ -17,27 +18,16 @@
       </div>
       <button id="refreshButton" class="refresh-button" type="button">REFRESH</button>
     </header>
-
     <nav class="nav" aria-label="Fantasy Intel pages">
       <a data-nav="team" href="../team/">TEAM</a>
       <a data-nav="matchup" href="../matchup/">MATCHUP</a>
       <a data-nav="players" href="../players/">PLAYERS</a>
       <a data-nav="league" href="../league/">LEAGUE</a>
     </nav>
-
     <div id="notice" class="notice" hidden></div>
-
     <section id="teamSummary" class="summary card" aria-label="Team summary"></section>
-
     <section class="card">
-      <div class="card-head">
-        <div>
-          <p class="eyebrow">CURRENT ROSTER</p>
-          <h2>Starters</h2>
-          <p>Current Yahoo lineup with live Fantasy Intel.</p>
-        </div>
-        <span class="week-chip" id="weekLabel">Week 1</span>
-      </div>
+      <div class="card-head"><div><p class="eyebrow">CURRENT ROSTER</p><h2>Starters</h2><p>Current Yahoo lineup with live Fantasy Intel.</p></div><span class="week-chip" id="weekLabel">Week 1</span></div>
       <div id="starters"></div>
       <div class="section-label">BENCH / IR</div>
       <div id="bench"></div>
