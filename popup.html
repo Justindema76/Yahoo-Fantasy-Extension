@@ -9,16 +9,16 @@
 <body>
   <main class="wrap">
     <div class="eyebrow">FANTASY INTEL</div>
-    <h1>Yahoo League Sync <small style="font-size:10px;color:#53d7ff">v2.4.0</small></h1>
-    <p class="league">Battle of the Kings · League 497223</p>
-    <div class="my-team"><span>YOUR TEAM</span><b>House of the Dragon</b><small>Yahoo Team 6</small></div>
+    <h1>Yahoo League Sync <small style="font-size:10px;color:#53d7ff">v2.5.0</small></h1>
+    <p id="leagueLabel" class="league">Battle of the Kings · League 497223</p>
+    <div class="my-team"><span>YOUR TEAM</span><b id="teamName">Detecting…</b><small id="teamKey">Open your Yahoo team page</small></div>
 
     <button id="syncButton" class="primary">SYNC ALL TEAMS</button>
     <button id="openButton" class="secondary">OPEN LEAGUE VIEW</button>
 
     <section id="status" class="status">
       <b id="statusTitle">Ready</b>
-      <p id="statusText">Open any Battle of the Kings page in Yahoo, then sync.</p>
+      <p id="statusText">Open your Yahoo team page once. The extension will remember which team is yours.</p>
     </section>
 
     <div id="stats" class="stats" hidden>
