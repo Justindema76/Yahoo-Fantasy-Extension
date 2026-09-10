@@ -1,10 +1,24 @@
 const SITE_URL='https://2026-fantasy-football.vercel.app/league';
+const LEAGUE='497223';
 const syncButton=document.getElementById('syncButton');
 const openButton=document.getElementById('openButton');
 const status=document.getElementById('status');
 const statusTitle=document.getElementById('statusTitle');
 const statusText=document.getElementById('statusText');
 const stats=document.getElementById('stats');
+const teamName=document.getElementById('teamName');
+const teamKey=document.getElementById('teamKey');
+let identity=null;
+
+function showIdentity(value){
+  identity=value||null;
+  teamName.textContent=identity?.teamName||'Not detected yet';
+  teamKey.textContent=identity?.teamId?`Yahoo Team ${identity.teamId}`:'Open your Yahoo team page once';
+}
+async function loadIdentity(){
+  const data=await chrome.storage.local.get(['fantasyLeagueIdentity']);
+  showIdentity(data.fantasyLeagueIdentity||null);
+}
 
 function setStatus(title,text,type=''){
   status.className=`status ${type}`.trim();
@@ -33,16 +47,18 @@ syncButton.addEventListener('click',async()=>{
     const response=await send('SYNC_LEAGUE');
     if(!response?.ok)throw new Error(response?.error||'Sync failed.');
     const r=response.result;
+    if(r.myTeamKey)showIdentity({leagueId:LEAGUE,teamId:String(r.myTeamKey),teamName:r.myTeamName||`Yahoo Team ${r.myTeamKey}`});
     showStats(r);
     setStatus('Sync complete',`${r.teams} teams, ${r.players} roster spots and ${r.matchups||0} weekly matchups saved. ${r.matched} players matched.${r.unmatched?` ${r.unmatched} still need name matching.`:''}`,'success');
   }catch(error){setStatus('Sync failed',error.message,'error')}
   finally{syncButton.disabled=false;syncButton.textContent='SYNC ALL TEAMS'}
 });
-openButton.addEventListener('click',()=>chrome.tabs.create({url:SITE_URL}));
+openButton.addEventListener('click',async()=>{await loadIdentity();const url=identity?.teamId?`${SITE_URL}?team=${encodeURIComponent(identity.teamId)}&league=${LEAGUE}`:SITE_URL;chrome.tabs.create({url})});
 
 (async()=>{
   try{
     const response=await send('LEAGUE_STATUS');
+    if(response?.identity)showIdentity(response.identity);
     const r=response?.lastSync;
     if(r){
       showStats(r);
@@ -50,4 +66,5 @@ openButton.addEventListener('click',()=>chrome.tabs.create({url:SITE_URL}));
       setStatus('Last sync loaded',`${r.teams} teams · ${r.players} players${when?` · ${when}`:''}`,'success');
     }
   }catch(_e){}
+  await loadIdentity();
 })();
