@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Fantasy Intel Yahoo League Sync",
-  "version": "2.5.0",
-  "description": "Syncs Battle of the Kings rosters and matchups while detecting the current Yahoo user team from the team page.",
+  "version": "2.6.0",
+  "description": "Standalone Yahoo fantasy league sync with an extension-owned dashboard, no React or external web app required.",
   "permissions": [
     "storage",
     "activeTab",
