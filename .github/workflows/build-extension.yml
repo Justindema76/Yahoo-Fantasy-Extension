@@ -37,15 +37,17 @@ jobs:
           node --check popup.js
           find app/js -type f -name '*.js' -print0 | xargs -0 -n1 node --check
 
-      - name: Verify rebuilt Fantasy Intel pages
+      - name: Verify single-page Fantasy Intel app
         shell: bash
         run: |
           test -f app/index.html
-          test -f app/team.html
-          test -f app/players.html
-          test -f app/league.html
           test -f app/all-matchups.html
+          test -f app/css/site.css
+          test -f app/css/player-drawer.css
           test -f app/js/site.js
+          test ! -f app/team.html
+          test ! -f app/players.html
+          test ! -f app/league.html
 
       - name: Build extension ZIP
         shell: bash
