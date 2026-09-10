@@ -22,7 +22,7 @@ export async function loadLeagueData(leagueId){
     api(rosterPath),
     api(`fantasy_league_matchups?select=*&league_key=eq.${leagueKey}&order=week.asc,matchup_key.asc`),
     api('planner_player_tags?select=player_key,player_name,tags,reason,last_confirmed_date,updated_at'),
-    api('intel_items?select=player_name,player_key,action,priority,recommendation,what_changed,next_trigger,injury_related,source_note,last_confirmed_date,last_checked_at,updated_at&resolved_at=is.null&transfer_to_live=eq.true&order=updated_at.desc')
+    api('intel_items?select=player_name,action,priority,recommendation,what_changed,next_trigger,injury_related,source_note,last_confirmed_date,last_checked_at,updated_at&resolved_at=is.null&transfer_to_live=eq.true&order=updated_at.desc')
   ]);
   return {leagueId:String(leagueId),leagueKey,teams:teams||[],rosters:rosters||[],matchups:matchups||[],planner:planner||[],intel:intel||[]};
 }
