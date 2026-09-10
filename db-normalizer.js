@@ -21,14 +21,21 @@
     }
   }
 
-  globalThis.fetch = (input, init = {}) => {
-    const url = typeof input === 'string' ? input : input?.url || '';
-    const method = String(init?.method || (typeof input !== 'string' && input?.method) || 'GET').toUpperCase();
+  function fixYahooPlayersUrl(url) {
+    if (typeof url !== 'string' || !/\/f1\/497223\/players\?/i.test(url)) return url;
+    // Yahoo's projected-week selector uses S_PW_<week> (for example S_PW_1).
+    return url.replace(/([?&]stat1=)P_W_(\d+)/i, '$1S_PW_$2');
+  }
 
-    if (method === 'POST' && /bbodmhffnqebhfksjier\.supabase\.co\/rest\/v1\//i.test(url) && typeof init?.body === 'string') {
-      return nativeFetch(input, { ...init, body: normalizeBody(init.body) });
+  globalThis.fetch = (input, init = {}) => {
+    const rawUrl = typeof input === 'string' ? input : input?.url || '';
+    const method = String(init?.method || (typeof input !== 'string' && input?.method) || 'GET').toUpperCase();
+    const fixedInput = typeof input === 'string' ? fixYahooPlayersUrl(input) : input;
+
+    if (method === 'POST' && /bbodmhffnqebhfksjier\.supabase\.co\/rest\/v1\//i.test(rawUrl) && typeof init?.body === 'string') {
+      return nativeFetch(fixedInput, { ...init, body: normalizeBody(init.body) });
     }
 
-    return nativeFetch(input, init);
+    return nativeFetch(fixedInput, init);
   };
 })();
