@@ -3,10 +3,43 @@
   const SB='https://bbodmhffnqebhfksjier.supabase.co';
   const KEY='sb_publishable_L048cgw2gZwCeWmSWpUclA_cuKCSyQn';
   const HEAD={apikey:KEY,Authorization:`Bearer ${KEY}`,'Content-Type':'application/json'};
-  const LEAGUE='497223',LEAGUE_KEY='battle-of-the-kings-2026',MY_TEAM='6',VERSION='2.4.0';
+  const LEAGUE='497223',LEAGUE_KEY='battle-of-the-kings-2026',VERSION='2.5.0';
   const clean=v=>String(v||'').replace(/\s+/g,' ').trim();
   const norm=v=>clean(v).toLowerCase().normalize('NFKD').replace(/[’']/g,'').replace(/[^a-z0-9]+/g,' ').replace(/\b(jr|sr|ii|iii|iv)\b/g,' ').replace(/\s+/g,' ').trim();
   let syncing=false,last=null,lastError=null,stage='READY';
+
+  function explicitTeamIdFromUrl(){
+    const m=location.pathname.match(new RegExp(`^/f1/${LEAGUE}/(\\d+)(?:/|$)`));
+    return m?m[1]:null;
+  }
+
+  function teamNameFromPage(teamId){
+    if(!teamId)return null;
+    const exactPath=`/f1/${LEAGUE}/${teamId}`;
+    const candidates=[...document.querySelectorAll('a[href]')]
+      .filter(a=>{try{return new URL(a.getAttribute('href'),location.origin).pathname.replace(/\/$/,'')===exactPath}catch{return false}})
+      .map(a=>clean(a.textContent))
+      .filter(t=>t&&!/^(roster|players|matchup|edit|team)$/i.test(t));
+    candidates.sort((a,b)=>b.length-a.length);
+    return candidates[0]||null;
+  }
+
+  async function resolveIdentity(knownTeams=[]){
+    const key=`fantasyIdentity:${LEAGUE}`;
+    const stored=(await chrome.storage.local.get([key]))[key]||null;
+    const explicitId=explicitTeamIdFromUrl();
+    if(explicitId){
+      const known=knownTeams.find(t=>String(t.id||t.yahoo_team_key||'')===String(explicitId));
+      const identity={leagueId:LEAGUE,teamId:String(explicitId),teamName:known?.name||known?.team_name||teamNameFromPage(explicitId)||stored?.teamName||`Yahoo Team ${explicitId}`,detectedFrom:'url',updatedAt:new Date().toISOString()};
+      await chrome.storage.local.set({[key]:identity,fantasyLeagueIdentity:identity});
+      return identity;
+    }
+    if(stored){
+      await chrome.storage.local.set({fantasyLeagueIdentity:stored});
+      return stored;
+    }
+    return null;
+  }
 
   async function progress(next,extra={}){
     stage=next;
@@ -137,7 +170,7 @@
     await db(`fantasy_league_teams?id=eq.${seeded.id}&select=*`,{
       method:'PATCH',
       headers:{Prefer:'return=representation'},
-      body:JSON.stringify({yahoo_team_key:team.id,is_my_team:team.id===MY_TEAM,last_synced_at:when,updated_at:when})
+      body:JSON.stringify({yahoo_team_key:team.id,last_synced_at:when,updated_at:when})
     });
 
     await progress('PARSE ROSTER',{teamId:team.id,teamName:seeded.team_name});
@@ -299,8 +332,9 @@
       const teams=teamsFrom(teamsDoc);
       if(teams.length!==12)throw Object.assign(Error(`Expected 12 teams but detected ${teams.length}.`),{context:{teamsFound:teams,yahooPlayersDetected:yahooPlayers.length}});
 
+      const identity=await resolveIdentity(teams);
       const index=buildCatalogIndex(catalog,yahooPlayers);
-      const result={leagueId:LEAGUE,playerSource:'Yahoo /players + draft_player_catalog',yahooPlayersDetected:yahooPlayers.length,teams:0,players:0,matched:0,unmatched:0,errors:[],teamResults:[],syncedAt:when};
+      const result={leagueId:LEAGUE,myTeamKey:identity?.teamId||null,myTeamName:identity?.teamName||null,playerSource:'Yahoo /players + draft_player_catalog',yahooPlayersDetected:yahooPlayers.length,teams:0,players:0,matched:0,unmatched:0,errors:[],teamResults:[],syncedAt:when};
 
       for(const team of teams){
         try{
@@ -334,7 +368,7 @@
       return true;
     }
     if(msg?.type==='LEAGUE_STATUS'){
-      chrome.storage.local.get(['fantasyLeagueLastSync','fantasyLeagueLastError','fantasyLeagueProgress']).then(x=>reply({ok:true,lastSync:last||x.fantasyLeagueLastSync||null,lastError:lastError||x.fantasyLeagueLastError||null,progress:x.fantasyLeagueProgress||null,syncing,stage}));
+      chrome.storage.local.get(['fantasyLeagueLastSync','fantasyLeagueLastError','fantasyLeagueProgress','fantasyLeagueIdentity']).then(x=>reply({ok:true,lastSync:last||x.fantasyLeagueLastSync||null,lastError:lastError||x.fantasyLeagueLastError||null,progress:x.fantasyLeagueProgress||null,identity:x.fantasyLeagueIdentity||null,syncing,stage}));
       return true;
     }
   });
