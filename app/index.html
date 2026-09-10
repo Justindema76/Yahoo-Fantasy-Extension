@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#f4f7fb">
   <meta name="robots" content="noindex">
-  <title>Fantasy Intel · House of the Dragon</title>
+  <title>Fantasy Intel</title>
   <link rel="stylesheet" href="./css/site.css">
   <link rel="stylesheet" href="./css/player-drawer.css">
 </head>
@@ -14,7 +14,7 @@
     <header class="topbar">
       <div class="brand">
         <p class="eyebrow">FANTASY INTEL</p>
-        <h1>House of the Dragon</h1>
+        <h1 id="teamNameTitle">Fantasy Team</h1>
         <p class="subline">Battle of the Kings · <span id="syncStamp">Yahoo synced</span></p>
       </div>
       <button id="refreshButton" class="refresh-button" type="button">REFRESH</button>
@@ -52,7 +52,7 @@
 
     <section id="view-team" class="view" data-view-panel="team" hidden>
       <div class="card">
-        <div class="view-title"><div><p class="eyebrow">MY TEAM</p><h2>House of the Dragon</h2><p>Your side of the weekly matchup, using the exact same Yahoo scoring data.</p></div></div>
+        <div class="view-title"><div><p class="eyebrow">MY TEAM</p><h2 id="teamViewName">Fantasy Team</h2><p>Your side of the weekly matchup, using the exact same Yahoo scoring data.</p></div></div>
         <div class="team-summary">
           <div><span id="teamWeekTitle">WEEK 1</span><strong id="teamScore">—</strong></div>
           <div><span>PROJECTED</span><strong id="teamProjection">—</strong></div>
@@ -90,7 +90,7 @@
             <div><span>PROJECTED</span><b id="managerProjection">—</b></div>
           </div>
         </div>
-        <div id="managerRosterTitle" class="section-label">HOUSE OF THE DRAGON</div>
+        <div id="managerRosterTitle" class="section-label">YOUR TEAM</div>
         <div id="managerRoster"></div>
       </div>
     </section>
