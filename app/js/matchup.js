@@ -1,6 +1,7 @@
 import {CONFIG} from './config.js';
 import {loadLeagueData} from './api.js';
 import {esc,slotWeight,isBenchSlot,buildIndexes,playerIntel} from './utils.js';
+import {installPlayerDrawer,drawerAttrs} from './player-drawer.js';
 
 const OWNER_TEAM_ID='6';
 const params=new URLSearchParams(location.search);
@@ -66,7 +67,8 @@ function scoreHeader(me,opp,matchup){
 }
 function playerInfo(row,side){
   if(!row)return `<div class="matchup-player-info ${side}"><div class="matchup-player-name">—</div></div>`;
-  const intel=latestIntel(row);return `<div class="matchup-player-info ${side}"><div class="matchup-player-name">${esc(shortName(row.yahoo_player_name||row.yahoo_name||row.player_name))}</div><div class="matchup-player-meta">${esc(gameMeta(row))}</div>${intel?`<span class="matchup-player-intel">${esc(String(intel.action||'INTEL').toUpperCase())}</span>`:''}</div>`;
+  const intel=latestIntel(row);
+  return `<div class="matchup-player-info ${side} player-tappable" ${drawerAttrs(row)} tabindex="0" role="button" aria-label="Open ${esc(row.yahoo_player_name||row.yahoo_name||row.player_name||'player')} details"><div class="matchup-player-name">${esc(shortName(row.yahoo_player_name||row.yahoo_name||row.player_name))}</div><div class="matchup-player-meta">${esc(gameMeta(row))}</div>${intel?`<span class="matchup-player-intel">${esc(String(intel.action||'INTEL').toUpperCase())}</span>`:''}</div>`;
 }
 function points(row){const s=row?statFor(row):null;return `<div class="matchup-player-points"><b>${fmt(s?.fantasy_points)}</b><span>${fmt(s?.projected_points)}</span></div>`}
 function compareRows(me,opp){
@@ -77,7 +79,7 @@ function compareRows(me,opp){
   }
   return html||'<div class="empty">No starters synced for this week.</div>';
 }
-function benchHtml(team){return bench(team).map(r=>{const s=statFor(r),intel=latestIntel(r);return `<div class="player-row"><div class="slot">${esc(r.roster_slot||'BN')}</div><div class="player-main"><b>${esc(r.yahoo_player_name||'')}</b><small>${esc(gameMeta(r))}</small>${intel?`<p><strong>${esc(intel.action)}:</strong> ${esc(intel.recommendation||intel.what_changed||'')}</p>`:''}</div><div class="points"><b>${fmt(s?.fantasy_points)}</b><span>Proj ${fmt(s?.projected_points)}</span></div></div>`}).join('')||'<div class="empty">No opponent bench players synced.</div>'}
+function benchHtml(team){return bench(team).map(r=>{const s=statFor(r),intel=latestIntel(r);return `<div class="player-row player-tappable" ${drawerAttrs(r)} tabindex="0" role="button" aria-label="Open ${esc(r.yahoo_player_name||'player')} details"><div class="slot">${esc(r.roster_slot||'BN')}</div><div class="player-main"><b>${esc(r.yahoo_player_name||'')}</b><small>${esc(gameMeta(r))}</small>${intel?`<div class="tags"><span class="tag">${esc(String(intel.action||'INTEL').toUpperCase())}</span></div>`:''}</div><div class="points"><b>${fmt(s?.fantasy_points)}</b><span>Proj ${fmt(s?.projected_points)}</span></div></div>`}).join('')||'<div class="empty">No opponent bench players synced.</div>'}
 function render(){
   setQuery();wireNav();renderSyncStamp();const me=ownerTeam();if(!me)return;
   const matchup=data.matchups.find(m=>Number(m.week)===selectedWeek&&(m.team_a_id===me.id||m.team_b_id===me.id));
@@ -86,4 +88,6 @@ function render(){
   $('scoreArea').innerHTML=scoreHeader(me,opp,matchup);$('matchupBody').innerHTML=compareRows(me,opp);$('opponentBench').innerHTML=benchHtml(opp);$('opponentBenchTitle').textContent=`${opp?.team_name||'Opponent'} Bench`;
 }
 async function load(){try{data=await loadLeagueData(leagueId);indexes=buildIndexes(data);if(!params.get('week'))selectedWeek=inferWeek();setupWeekPicker();render()}catch(error){$('notice').hidden=false;$('notice').className='notice error';$('notice').textContent=`Could not load Fantasy Intel: ${error.message}`}}
+
+installPlayerDrawer({getData:()=>data,getIndexes:()=>indexes,getWeek:()=>selectedWeek});
 $('refreshButton').addEventListener('click',load);$('benchToggle').addEventListener('click',()=>{const target=$('opponentBenchWrap');target.hidden=!target.hidden;$('benchToggle').textContent=target.hidden?'SHOW OPPONENT BENCH ▼':'HIDE OPPONENT BENCH ▲'});load();
