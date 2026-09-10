@@ -41,9 +41,22 @@ function sortRows(a,b){
   return String(a?.yahoo_player_name||a?.yahoo_name||'').localeCompare(String(b?.yahoo_player_name||b?.yahoo_name||''));
 }
 function rosterFor(team){return (data?.rosters||[]).filter(r=>r.league_team_id===team?.id).slice().sort(sortRows)}
+function playerKey(row){return String(row?.yahoo_player_key||row?.player_key||'')}
+function assignedWeekRows(team,week=selectedWeek){
+  return (data?.weekStats||[]).filter(r=>Number(r.week)===Number(week)&&(r.league_team_id===team?.id||r.owning_team_id===team?.id));
+}
 function weekRowsFor(team,week=selectedWeek){
-  const weekly=(data?.weekStats||[]).filter(r=>r.league_team_id===team?.id&&Number(r.week)===Number(week));
-  return (weekly.length?weekly:rosterFor(team)).slice().sort(sortRows);
+  const base=rosterFor(team),weekly=assignedWeekRows(team,week);
+  if(!base.length)return weekly.slice().sort(sortRows);
+  const enoughForSnapshot=weekly.length>=Math.min(base.length,9);
+  if(enoughForSnapshot)return weekly.slice().sort(sortRows);
+  const byYahoo=new Map(weekly.filter(r=>r.yahoo_player_key).map(r=>[String(r.yahoo_player_key),r]));
+  const byPlayer=new Map(weekly.filter(r=>r.player_key).map(r=>[String(r.player_key),r]));
+  return base.map(r=>{
+    const st=byYahoo.get(String(r.yahoo_player_key||''))||byPlayer.get(String(r.player_key||''));
+    if(!st)return r;
+    return {...r,...st,league_team_id:r.league_team_id,roster_slot:st.roster_slot||r.roster_slot,lineup_order:st.lineup_order??r.lineup_order,is_starter:typeof st.is_starter==='boolean'?st.is_starter:starter(r)};
+  }).sort(sortRows);
 }
 function statFor(row,week=selectedWeek){
   if(Number(row?.week)===Number(week)&&('fantasy_points' in row||'projected_points' in row))return row;
@@ -60,10 +73,24 @@ function currentPoolFor(row,week=selectedWeek){
   return p&&Number(p.current_week||week)===Number(week)?p:null;
 }
 function intelFor(row){return playerIntel(row,indexes)[0]||null}
+function metricsFor(row,week=selectedWeek){
+  const st=statFor(row,week),pool=currentPoolFor(row,week);
+  return {actual:st?.fantasy_points??pool?.fantasy_points??null,projected:st?.projected_points??pool?.projected_points??null,opponent:st?.opponent||pool?.opponent||'',gameTime:st?.game_time||pool?.game_time||'',gameStatus:st?.game_status||pool?.game_status||''};
+}
 function teamScore(team,week=selectedWeek){
-  const m=data?.matchups.find(x=>Number(x.week)===Number(week)&&(x.team_a_id===team?.id||x.team_b_id===team?.id));
-  if(!m)return {points:null,projected:null};
-  return m.team_a_id===team.id?{points:m.team_a_points,projected:m.team_a_projected}:{points:m.team_b_points,projected:m.team_b_projected};
+  const rows=weekRowsFor(team,week).filter(starter);
+  if(!rows.length)return {points:null,projected:null,projectionComplete:false,starterCount:0};
+  const metrics=rows.map(r=>metricsFor(r,week));
+  const hasWeeklyData=rows.some(r=>Boolean(statFor(r,week)));
+  const projectedValues=metrics.map(m=>m.projected).filter(v=>v!==null&&v!==undefined&&v!=='').map(Number).filter(Number.isFinite);
+  const actualValues=metrics.map(m=>m.actual).filter(v=>v!==null&&v!==undefined&&v!=='').map(Number).filter(Number.isFinite);
+  const projectionComplete=projectedValues.length===rows.length;
+  return {
+    points:hasWeeklyData?actualValues.reduce((sum,v)=>sum+v,0):null,
+    projected:projectionComplete?projectedValues.reduce((sum,v)=>sum+v,0):null,
+    projectionComplete,
+    starterCount:rows.length
+  };
 }
 function inferWeek(){
   const poolWeek=Math.max(0,...(data?.pool||[]).map(p=>Number(p.current_week)||0));
@@ -102,7 +129,7 @@ function setupWeekPicker(){
   const go=w=>{
     selectedWeek=Math.max(1,Math.min(18,Number(w)||1));
     select.value=String(selectedWeek);
-    setQuery();updateLinks();renderCurrent();
+    setQuery();updateLinks();renderAllViews();
   };
   select.onchange=()=>go(select.value);
   $('prevWeek')?.addEventListener('click',()=>go(selectedWeek-1));
@@ -119,7 +146,6 @@ function setView(view,{updateHash=true}={}){
   document.querySelectorAll('[data-view-panel]').forEach(panel=>panel.hidden=panel.dataset.viewPanel!==activeView);
   document.querySelectorAll('[data-view]').forEach(button=>button.classList.toggle('active',button.dataset.view===activeView));
   if(updateHash){const u=new URL(location.href);u.hash=activeView==='matchup'?'':activeView;history.replaceState({},'',u)}
-  renderCurrent();
 }
 function wireTabs(){
   document.querySelectorAll('[data-view]').forEach(button=>button.addEventListener('click',()=>setView(button.dataset.view)));
@@ -128,10 +154,6 @@ function wireTabs(){
 function badges(row){
   const tags=playerTags(row,indexes);if(!tags.length)return'';
   return `<div class="tags">${tags.slice(0,4).map(t=>`<span class="tag ${String(t).toLowerCase().replace(/[^a-z0-9]+/g,'-')}">${esc(String(t).toUpperCase())}</span>`).join('')}</div>`;
-}
-function metricsFor(row,week=selectedWeek){
-  const st=statFor(row,week),pool=currentPoolFor(row,week);
-  return {actual:st?.fantasy_points??pool?.fantasy_points??null,projected:st?.projected_points??pool?.projected_points??null,opponent:st?.opponent||pool?.opponent||'',gameTime:st?.game_time||pool?.game_time||'',gameStatus:st?.game_status||pool?.game_status||''};
 }
 function playerRow(row,{week=selectedWeek}={}){
   const m=metricsFor(row,week),name=row?.yahoo_player_name||row?.yahoo_name||row?.player_name||'Player';
@@ -144,12 +166,12 @@ function playerRow(row,{week=selectedWeek}={}){
 }
 function scoreHero(me,opp){
   const my=teamScore(me),op=teamScore(opp),total=(Number(my.projected)||0)+(Number(op.projected)||0);
-  const pct=total?Math.round((Number(my.projected)||0)/total*100):50;
+  const pct=my.projected!==null&&op.projected!==null&&total?Math.round(Number(my.projected)/total*100):50;
   return `<div class="matchup-score-card"><div class="score-teams">
     <div class="score-team"><small>YOUR TEAM</small><b>${esc(me?.team_name||'Your Team')}</b><strong>${fmt(my.points)}</strong><span>${fmt(my.projected)} projected</span></div>
     <div class="score-vs">VS</div>
     <div class="score-team right"><small>OPPONENT</small><b>${esc(opp?.team_name||'Opponent')}</b><strong>${fmt(op.points)}</strong><span>${fmt(op.projected)} projected</span></div>
-  </div><div class="win-meter"><b>${pct}%</b><div class="win-track"><div class="win-fill" style="width:${pct}%"></div></div><b>${100-pct}%</b></div></div>`;
+  </div><div class="win-meter"><b>${my.projected!==null&&op.projected!==null?pct:'—'}${my.projected!==null&&op.projected!==null?'%':''}</b><div class="win-track"><div class="win-fill" style="width:${pct}%"></div></div><b>${my.projected!==null&&op.projected!==null?100-pct:'—'}${my.projected!==null&&op.projected!==null?'%':''}</b></div></div>`;
 }
 function shortName(name){
   const p=String(name||'').trim().split(/\s+/).filter(Boolean);if(p.length<2)return String(name||'').toUpperCase();
@@ -213,36 +235,32 @@ function renderLeagueTeam(){
 }
 function matchupCard(m){
   const me=ownerTeam(),a=teamByDb(m.team_a_id),b=teamByDb(m.team_b_id),mine=m.team_a_id===me?.id||m.team_b_id===me?.id;
-  const one=(team,points,proj)=>{const id=`roster-${m.id}-${team?.id}`;return `<div class="all-matchup-team"><div class="all-matchup-team-head"><div><b>${esc(team?.team_name||'')}</b><small>${esc(team?.manager_name||'')}${team?.id===me?.id?' · YOU':''}</small><button class="roster-toggle" type="button" data-roster="${id}">PLAYERS ▼</button></div><div class="all-matchup-team-score"><strong>${fmt(points)}</strong><span>${fmt(proj)} proj</span></div></div><div id="${id}" class="inline-roster" hidden>${weekRowsFor(team).map(r=>playerRow(r)).join('')}</div></div>`};
-  return `<article class="all-matchup-card ${mine?'mine':''}">${one(a,m.team_a_points,m.team_a_projected)}${one(b,m.team_b_points,m.team_b_projected)}</article>`;
+  const one=team=>{const id=`roster-${m.id}-${team?.id}`,score=teamScore(team);return `<div class="all-matchup-team"><div class="all-matchup-team-head"><div><b>${esc(team?.team_name||'')}</b><small>${esc(team?.manager_name||'')}${team?.id===me?.id?' · YOU':''}</small><button class="roster-toggle" type="button" data-roster="${id}">PLAYERS ▼</button></div><div class="all-matchup-team-score"><strong>${fmt(score.points)}</strong><span>${fmt(score.projected)} proj</span></div></div><div id="${id}" class="inline-roster" hidden>${weekRowsFor(team).map(r=>playerRow(r)).join('')}</div></div>`};
+  return `<article class="all-matchup-card ${mine?'mine':''}">${one(a)}${one(b)}</article>`;
 }
 function renderAllMatchups(){
   if(!$('allMatchupsList'))return;const matches=(data?.matchups||[]).filter(m=>Number(m.week)===Number(selectedWeek));
   $('allMatchupsList').innerHTML=matches.length?`<div class="all-matchups-list">${matches.map(matchupCard).join('')}</div>`:'<div class="empty">No league matchups are synced for this week.</div>';
 }
-function renderCurrent(){
+function renderAllViews(){
   renderIdentity();renderSyncStamp();updateLinks();
   if(IS_ALL_MATCHUPS){renderAllMatchups();return}
-  if(activeView==='matchup')renderMatchup();
-  else if(activeView==='team')renderTeam();
-  else if(activeView==='players')renderPlayers();
-  else if(activeView==='league')renderLeague();
+  renderMatchup();renderTeam();renderPlayers();renderLeague();
 }
 async function load(){
   try{
     data=await loadLeagueData(leagueId);indexes=buildIndexes(data);
     const me=ownerTeam();if(me?.yahoo_team_key)selectedTeamId=String(me.yahoo_team_key);
     if(!hadWeek)selectedWeek=inferWeek();
-    setupWeekPicker();renderIdentity();updateLinks();
-    if(!IS_ALL_MATCHUPS)setView(activeView,{updateHash:false});else renderCurrent();
+    setupWeekPicker();renderAllViews();setView(activeView,{updateHash:false});
     installPlayerDrawer({getData:()=>data,getIndexes:()=>indexes,getWeek:()=>selectedWeek});
-    const missingWeekRows=(data.weekStats||[]).length===0;
-    showNotice(missingWeekRows?'Yahoo team and matchup totals are synced. Individual weekly player points/projections still need one completed SYNC YAHOO from the extension.':'');
+    const currentTeamRows=assignedWeekRows(ownerTeam(),selectedWeek),projectionCount=currentTeamRows.filter(r=>r.projected_points!==null&&r.projected_points!==undefined).length;
+    showNotice(!currentTeamRows.length?'Yahoo rosters are synced. Player-level weekly scoring/projections are waiting for a completed SYNC YAHOO from the extension.':projectionCount<weekRowsFor(ownerTeam()).filter(starter).length?'Player weekly data is partial. Team projections stay blank until every starter projection is synced from Yahoo Players.':'');
   }catch(error){showNotice(`Fantasy Intel could not load: ${error.message}`)}
 }
 async function refresh(){
   const button=$('refreshButton');if(button){button.disabled=true;button.textContent='REFRESHING…'}
-  try{data=await loadLeagueData(leagueId);indexes=buildIndexes(data);renderCurrent();showNotice((data.weekStats||[]).length?'':'Individual weekly Yahoo player rows are still waiting for a completed extension sync.')}
+  try{data=await loadLeagueData(leagueId);indexes=buildIndexes(data);renderAllViews()}
   catch(error){showNotice(`Refresh failed: ${error.message}`)}
   finally{if(button){button.disabled=false;button.textContent='REFRESH'}}
 }
