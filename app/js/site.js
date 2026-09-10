@@ -3,13 +3,14 @@ import {loadLeagueData} from './api.js';
 import {esc,norm,slotWeight,isBenchSlot,buildIndexes,playerIntel,playerTags} from './utils.js';
 import {installPlayerDrawer,drawerAttrs} from './player-drawer.js';
 
-const OWNER_TEAM_ID='6';
+const DEFAULT_TEAM_ID='6';
 const PAGE=document.body.dataset.page||'app';
 const IS_ALL_MATCHUPS=PAGE==='all-matchups';
 const VIEWS=['team','matchup','players','league'];
 const params=new URLSearchParams(location.search);
 const leagueId=params.get('league')||CONFIG.defaultLeagueId;
 const hadWeek=params.has('week');
+let selectedTeamId=params.get('team')||DEFAULT_TEAM_ID;
 let selectedWeek=Math.max(1,Math.min(18,Number(params.get('week')||0)||1));
 let activeView=VIEWS.includes(location.hash.replace('#',''))?location.hash.replace('#',''):'matchup';
 let data=null;
@@ -21,7 +22,7 @@ const starter=row=>typeof row?.is_starter==='boolean'?row.is_starter:!isBenchSlo
 
 function teamByYahoo(id){return data?.teams.find(t=>String(t.yahoo_team_key)===String(id))||null}
 function teamByDb(id){return data?.teams.find(t=>String(t.id)===String(id))||null}
-function ownerTeam(){return teamByYahoo(OWNER_TEAM_ID)}
+function ownerTeam(){return teamByYahoo(selectedTeamId)||teamByYahoo(DEFAULT_TEAM_ID)||data?.teams?.[0]||null}
 function currentMatchup(week=selectedWeek){
   const me=ownerTeam();
   return data?.matchups.find(m=>Number(m.week)===Number(week)&&(m.team_a_id===me?.id||m.team_b_id===me?.id))||null;
@@ -72,13 +73,21 @@ function inferWeek(){
 function setQuery(){
   const u=new URL(location.href);
   u.searchParams.set('league',leagueId);
+  u.searchParams.set('team',selectedTeamId);
   u.searchParams.set('week',String(selectedWeek));
-  u.searchParams.delete('team');
   history.replaceState({},'',u);
 }
 function showNotice(message){
   const el=$('notice');if(!el)return;
   el.hidden=!message;el.textContent=message||'';
+}
+function renderIdentity(){
+  const me=ownerTeam();if(!me)return;
+  selectedTeamId=String(me.yahoo_team_key||selectedTeamId);
+  if($('teamNameTitle'))$('teamNameTitle').textContent=me.team_name;
+  if($('teamViewName'))$('teamViewName').textContent=me.team_name;
+  if(!IS_ALL_MATCHUPS)document.title=`Fantasy Intel · ${me.team_name}`;
+  setQuery();
 }
 function renderSyncStamp(){
   const stamps=[...(data?.rosters||[]),...(data?.weekStats||[]),...(data?.pool||[])].map(r=>r.last_synced_at).filter(Boolean).sort();
@@ -100,8 +109,9 @@ function setupWeekPicker(){
   $('nextWeek')?.addEventListener('click',()=>go(selectedWeek+1));
 }
 function updateLinks(){
-  if($('allMatchupsLink'))$('allMatchupsLink').href=`./all-matchups.html?league=${encodeURIComponent(leagueId)}&week=${selectedWeek}`;
-  if($('backToApp'))$('backToApp').href=`./?league=${encodeURIComponent(leagueId)}&week=${selectedWeek}#matchup`;
+  const q=`league=${encodeURIComponent(leagueId)}&team=${encodeURIComponent(selectedTeamId)}&week=${selectedWeek}`;
+  if($('allMatchupsLink'))$('allMatchupsLink').href=`./all-matchups.html?${q}`;
+  if($('backToApp'))$('backToApp').href=`./?${q}#matchup`;
 }
 function setView(view,{updateHash=true}={}){
   if(IS_ALL_MATCHUPS)return;
@@ -136,7 +146,7 @@ function scoreHero(me,opp){
   const my=teamScore(me),op=teamScore(opp),total=(Number(my.projected)||0)+(Number(op.projected)||0);
   const pct=total?Math.round((Number(my.projected)||0)/total*100):50;
   return `<div class="matchup-score-card"><div class="score-teams">
-    <div class="score-team"><small>HOUSE OF THE DRAGON</small><b>${esc(me?.team_name||'House of the Dragon')}</b><strong>${fmt(my.points)}</strong><span>${fmt(my.projected)} projected</span></div>
+    <div class="score-team"><small>YOUR TEAM</small><b>${esc(me?.team_name||'Your Team')}</b><strong>${fmt(my.points)}</strong><span>${fmt(my.projected)} projected</span></div>
     <div class="score-vs">VS</div>
     <div class="score-team right"><small>OPPONENT</small><b>${esc(opp?.team_name||'Opponent')}</b><strong>${fmt(op.points)}</strong><span>${fmt(op.projected)} projected</span></div>
   </div><div class="win-meter"><b>${pct}%</b><div class="win-track"><div class="win-fill" style="width:${pct}%"></div></div><b>${100-pct}%</b></div></div>`;
@@ -175,6 +185,7 @@ function renderMatchup(){
 function renderTeam(){
   if(!$('teamStarters'))return;const me=ownerTeam();if(!me)return;
   const score=teamScore(me),rows=weekRowsFor(me),starters=rows.filter(starter),bench=rows.filter(r=>!starter(r));
+  if($('teamViewName'))$('teamViewName').textContent=me.team_name;
   $('teamWeekTitle').textContent=`WEEK ${selectedWeek}`;$('teamScore').textContent=fmt(score.points);$('teamProjection').textContent=fmt(score.projected);
   $('teamRosterCount').textContent=rows.length;$('teamIntelCount').textContent=rows.filter(r=>intelFor(r)).length;
   $('teamStarters').innerHTML=starters.map(r=>playerRow(r)).join('')||'<div class="empty">No starters synced.</div>';
@@ -210,7 +221,7 @@ function renderAllMatchups(){
   $('allMatchupsList').innerHTML=matches.length?`<div class="all-matchups-list">${matches.map(matchupCard).join('')}</div>`:'<div class="empty">No league matchups are synced for this week.</div>';
 }
 function renderCurrent(){
-  renderSyncStamp();updateLinks();
+  renderIdentity();renderSyncStamp();updateLinks();
   if(IS_ALL_MATCHUPS){renderAllMatchups();return}
   if(activeView==='matchup')renderMatchup();
   else if(activeView==='team')renderTeam();
@@ -220,12 +231,13 @@ function renderCurrent(){
 async function load(){
   try{
     data=await loadLeagueData(leagueId);indexes=buildIndexes(data);
+    const me=ownerTeam();if(me?.yahoo_team_key)selectedTeamId=String(me.yahoo_team_key);
     if(!hadWeek)selectedWeek=inferWeek();
-    setupWeekPicker();updateLinks();
+    setupWeekPicker();renderIdentity();updateLinks();
     if(!IS_ALL_MATCHUPS)setView(activeView,{updateHash:false});else renderCurrent();
     installPlayerDrawer({getData:()=>data,getIndexes:()=>indexes,getWeek:()=>selectedWeek});
     const missingWeekRows=(data.weekStats||[]).length===0;
-    showNotice(missingWeekRows?'Yahoo team and matchup totals are synced. Individual weekly player points/projections still need one completed SYNC YAHOO from extension v3.3.0.':'');
+    showNotice(missingWeekRows?'Yahoo team and matchup totals are synced. Individual weekly player points/projections still need one completed SYNC YAHOO from the extension.':'');
   }catch(error){showNotice(`Fantasy Intel could not load: ${error.message}`)}
 }
 async function refresh(){
