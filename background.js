@@ -1,5 +1,5 @@
 const VERSION=chrome.runtime.getManifest().version;
-const APP_URL='https://justindema76.github.io/Yahoo-Fantasy-Extension/app/';
+const APP_URL='https://justindema76.github.io/football-playoffs-app/';
 
 chrome.runtime.onMessage.addListener((message,sender,sendResponse)=>{
   if(message?.type==='OPEN_APP'){
