@@ -1,36 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "Fantasy Intel Yahoo League Sync",
-  "version": "3.4.2",
-  "description": "Sync Battle of the Kings Yahoo players, weekly scores, projections, team ownership, matchups and waivers into Fantasy Intel.",
-  "permissions": [
-    "storage",
-    "activeTab",
-    "tabs"
-  ],
-  "host_permissions": [
-    "https://football.fantasysports.yahoo.com/*",
-    "https://bbodmhffnqebhfksjier.supabase.co/*"
-  ],
-  "background": {
-    "service_worker": "background.js"
-  },
-  "content_scripts": [
-    {
-      "matches": [
-        "https://football.fantasysports.yahoo.com/*"
-      ],
-      "js": [
-        "identity-bridge.js",
-        "db-normalizer.js",
-        "league-sync.js",
-        "overlay.js"
-      ],
-      "run_at": "document_idle"
-    }
-  ],
+  "name": "Fantasy Intel Legacy (Disabled)",
+  "version": "3.4.4",
+  "description": "Legacy Yahoo sync extension. The active sync now lives in the main Fantasy Intel repository.",
   "action": {
-    "default_title": "Fantasy Intel Yahoo Sync",
-    "default_popup": "popup.html"
+    "default_title": "Legacy Fantasy Intel extension disabled"
   }
 }
