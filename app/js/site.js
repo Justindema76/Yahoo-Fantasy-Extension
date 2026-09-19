@@ -9,9 +9,10 @@ const IS_ALL_MATCHUPS=PAGE==='all-matchups';
 const VIEWS=['team','matchup','players','league'];
 const params=new URLSearchParams(location.search);
 const leagueId=params.get('league')||CONFIG.defaultLeagueId;
-const hadWeek=params.has('week');
+const requestedWeek=Number(params.get('week'));
+let weekPinned=params.get('weekMode')==='manual'&&Number.isFinite(requestedWeek)&&requestedWeek>=1&&requestedWeek<=18;
 let selectedTeamId=params.get('team')||DEFAULT_TEAM_ID;
-let selectedWeek=Math.max(1,Math.min(18,Number(params.get('week')||0)||1));
+let selectedWeek=weekPinned?Math.max(1,Math.min(18,requestedWeek)):null;
 let activeView=VIEWS.includes(location.hash.replace('#',''))?location.hash.replace('#',''):'matchup';
 let data=null;
 let indexes=null;
@@ -101,7 +102,13 @@ function setQuery(){
   const u=new URL(location.href);
   u.searchParams.set('league',leagueId);
   u.searchParams.set('team',selectedTeamId);
-  u.searchParams.set('week',String(selectedWeek));
+  if(weekPinned){
+    u.searchParams.set('week',String(selectedWeek));
+    u.searchParams.set('weekMode','manual');
+  }else{
+    u.searchParams.delete('week');
+    u.searchParams.delete('weekMode');
+  }
   history.replaceState({},'',u);
 }
 function showNotice(message){
@@ -128,6 +135,7 @@ function setupWeekPicker(){
   select.value=String(selectedWeek);
   const go=w=>{
     selectedWeek=Math.max(1,Math.min(18,Number(w)||1));
+    weekPinned=true;
     select.value=String(selectedWeek);
     setQuery();updateLinks();renderAllViews();
   };
@@ -136,7 +144,8 @@ function setupWeekPicker(){
   $('nextWeek')?.addEventListener('click',()=>go(selectedWeek+1));
 }
 function updateLinks(){
-  const q=`league=${encodeURIComponent(leagueId)}&team=${encodeURIComponent(selectedTeamId)}&week=${selectedWeek}`;
+  const mode=weekPinned?'manual':'current';
+  const q=`league=${encodeURIComponent(leagueId)}&team=${encodeURIComponent(selectedTeamId)}&week=${selectedWeek}&weekMode=${mode}`;
   if($('allMatchupsLink'))$('allMatchupsLink').href=`./all-matchups.html?${q}`;
   if($('backToApp'))$('backToApp').href=`./?${q}#matchup`;
 }
@@ -251,7 +260,7 @@ async function load(){
   try{
     data=await loadLeagueData(leagueId);indexes=buildIndexes(data);
     const me=ownerTeam();if(me?.yahoo_team_key)selectedTeamId=String(me.yahoo_team_key);
-    if(!hadWeek)selectedWeek=inferWeek();
+    if(!weekPinned)selectedWeek=inferWeek();
     setupWeekPicker();renderAllViews();setView(activeView,{updateHash:false});
     installPlayerDrawer({getData:()=>data,getIndexes:()=>indexes,getWeek:()=>selectedWeek});
     const currentTeamRows=assignedWeekRows(ownerTeam(),selectedWeek),projectionCount=currentTeamRows.filter(r=>r.projected_points!==null&&r.projected_points!==undefined).length;
@@ -260,7 +269,14 @@ async function load(){
 }
 async function refresh(){
   const button=$('refreshButton');if(button){button.disabled=true;button.textContent='REFRESHING…'}
-  try{data=await loadLeagueData(leagueId);indexes=buildIndexes(data);renderAllViews()}
+  try{
+    data=await loadLeagueData(leagueId);indexes=buildIndexes(data);
+    if(!weekPinned){
+      selectedWeek=inferWeek();
+      if($('weekSelect'))$('weekSelect').value=String(selectedWeek);
+    }
+    renderAllViews();
+  }
   catch(error){showNotice(`Refresh failed: ${error.message}`)}
   finally{if(button){button.disabled=false;button.textContent='REFRESH'}}
 }
